@@ -158,7 +158,7 @@ function AdminPanel() {
     : [];
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-10">
+    <div className="mx-auto max-w-7xl px-6 py-10 bg-slate-50 min-h-screen">
       <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-md">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -172,27 +172,33 @@ function AdminPanel() {
           <div className="flex flex-wrap gap-3">
             <Link
               to="/admin/dashboard"
-              className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
+              className={`rounded-lg px-4 py-3 text-sm font-semibold transition ${section === 'dashboard' ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
             >
               Dashboard
             </Link>
             <Link
+              to="/admin/erp"
+              className={`rounded-lg px-4 py-3 text-sm font-semibold transition ${section === 'erp' ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+            >
+              ERP
+            </Link>
+            <Link
+              to="/admin/crm"
+              className={`rounded-lg px-4 py-3 text-sm font-semibold transition ${section === 'crm' ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+            >
+              CRM
+            </Link>
+            <Link
               to="/admin/reports"
-              className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
+              className={`rounded-lg px-4 py-3 text-sm font-semibold transition ${section === 'reports' ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
             >
               Reports
             </Link>
             <Link
               to="/admin/analytics"
-              className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
+              className={`rounded-lg px-4 py-3 text-sm font-semibold transition ${section === 'analytics' ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
             >
               Analytics
-            </Link>
-            <Link
-              to="/admin/payments"
-              className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
-            >
-              Payments
             </Link>
           </div>
         </div>
@@ -727,37 +733,35 @@ function AdminPanel() {
 
           {/* Top Sellers */}
           <section className="mt-8 rounded-[2rem] border border-slate-200 bg-white p-8 shadow-md">
-            <h2 className="text-2xl font-bold text-slate-900">Top Sellers</h2>
+            <h2 className="text-2xl font-bold text-slate-900">
+              Top Sellers by Earnings
+            </h2>
             <div className="mt-6 overflow-x-auto">
               <table className="min-w-full text-left text-sm">
                 <thead className="border-b border-slate-200">
                   <tr>
-                    <th className="pb-4 font-semibold text-slate-900">
-                      Seller Name
-                    </th>
+                    <th className="pb-4 font-semibold text-slate-900">Rank</th>
+                    <th className="pb-4 font-semibold text-slate-900">Seller</th>
                     <th className="pb-4 font-semibold text-slate-900">Email</th>
-                    <th className="pb-4 font-semibold text-slate-900">
-                      Total Earnings
-                    </th>
-                    <th className="pb-4 font-semibold text-slate-900">
-                      Total Sales
-                    </th>
+                    <th className="pb-4 font-semibold text-slate-900">Total Earnings</th>
+                    <th className="pb-4 font-semibold text-slate-900">Total Sales</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
                   {(analyticsQuery.data?.data?.topSellers || []).map(
-                    (seller) => (
+                    (seller, index) => (
                       <tr key={seller.sellerId}>
+                        <td className="py-4 font-bold text-slate-900">#{index + 1}</td>
                         <td className="py-4 font-medium text-slate-900">
                           {seller.sellerName}
                         </td>
                         <td className="py-4 text-slate-600">
                           {seller.sellerEmail}
                         </td>
-                        <td className="py-4 font-semibold text-slate-900">
+                        <td className="py-4 text-emerald-600 font-semibold">
                           Rs {seller.totalEarnings.toFixed(2)}
                         </td>
-                        <td className="py-4 text-slate-700">
+                        <td className="py-4 text-slate-700 font-semibold">
                           {seller.totalSales}
                         </td>
                       </tr>
@@ -768,6 +772,24 @@ function AdminPanel() {
             </div>
           </section>
         </>
+      )}
+
+      {section === "erp" && (
+        <div className="mt-8">
+          <Navigate to="/admin/erp" replace />
+        </div>
+      )}
+
+      {section === "crm" && (
+        <div className="mt-8">
+          <Navigate to="/admin/crm" replace />
+        </div>
+      )}
+
+      {section === "reports" && (
+        <div className="mt-8">
+          <Navigate to="/reports" replace />
+        </div>
       )}
 
       {section === "payments" && (

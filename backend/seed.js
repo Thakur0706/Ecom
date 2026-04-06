@@ -11,6 +11,8 @@ import { SellerCommission } from "./src/models/SellerCommission.js";
 import { Service } from "./src/models/Service.js";
 import { SupportTicket } from "./src/models/SupportTicket.js";
 import { User } from "./src/models/User.js";
+import { Sales } from "./src/models/Sales.js";
+import { SellerPayment } from "./src/models/SellerPayment.js";
 import {
   refreshProductRating,
   refreshServiceRating,
@@ -46,6 +48,8 @@ async function resetDatabase() {
     Review.deleteMany({}),
     SupportTicket.deleteMany({}),
     SellerCommission.deleteMany({}),
+    Sales.deleteMany({}),
+    SellerPayment.deleteMany({}),
   ]);
 }
 
@@ -1053,6 +1057,49 @@ async function createCommissions(orders, bookings, sellers) {
   return SellerCommission.insertMany(commissions);
 }
 
+async function createSales(orders, bookings) {
+  const salesRecords = [];
+
+  // Create sales records for delivered orders
+  orders.forEach((order) => {
+    if (order.orderStatus === "delivered") {
+      salesRecords.push({
+        sellerId: order.sellerId,
+        orderId: order._id,
+        type: "product",
+        productId: order.items[0]?.productId,
+        title: `Order ${order.transactionId}`,
+        amount: order.totalAmount,
+        platformFee: order.platformFee,
+        sellerEarns: order.totalAmount - order.platformFee,
+        completedAt: order.updatedAt,
+      });
+    }
+  });
+
+  // Create sales records for completed bookings
+  bookings.forEach((booking) => {
+    if (booking.bookingStatus === "completed") {
+      salesRecords.push({
+        sellerId: booking.sellerId,
+        bookingId: booking._id,
+        type: "service",
+        serviceId: booking.serviceId,
+        title: booking.serviceTitle,
+        amount: booking.totalAmount,
+        platformFee: booking.platformFee,
+        sellerEarns: booking.totalAmount - booking.platformFee,
+        completedAt: booking.updatedAt,
+      });
+    }
+  });
+
+  if (salesRecords.length > 0) {
+    return Sales.insertMany(salesRecords);
+  }
+  return [];
+}
+
 async function seed() {
   await connectDatabase();
   await resetDatabase();
@@ -1067,6 +1114,7 @@ async function seed() {
   await createReviews(buyers, sellers, products, services);
   await createSupportTickets(buyers, sellers);
   await createCommissions(orders, bookings, sellers);
+  await createSales(orders, bookings);
 
   if (env.enableBackendLogs) {
     console.log("CampusConnect seed complete.");

@@ -1,6 +1,11 @@
 import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
-dotenv.config();
+// Load .env file from backend directory
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+dotenv.config({ path: join(__dirname, '../../.env') });
 
 const requiredValues = ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET'];
 

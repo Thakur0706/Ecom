@@ -73,7 +73,7 @@ function App() {
   const isAdminRoute = location.pathname.startsWith('/admin');
 
   return (
-    <div className={`flex min-h-screen flex-col ${isAdminRoute ? 'bg-slate-950/95' : 'bg-gray-100'}`}>
+    <div className={`flex min-h-screen flex-col ${isAdminRoute ? 'bg-slate-50' : 'bg-gray-100'}`}>
       <Navbar />
       <main className="flex-1">
         <Routes>
@@ -284,7 +284,23 @@ function App() {
             path="/admin/analytics"
             element={
               <AdminRoute>
-                <SalesAnalytics />
+                <AdminPanel />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/commissions"
+            element={
+              <AdminRoute>
+                <AdminPanel />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/payments"
+            element={
+              <AdminRoute>
+                <AdminPanel />
               </AdminRoute>
             }
           />

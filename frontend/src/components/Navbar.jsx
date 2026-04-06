@@ -107,21 +107,23 @@ function Navbar() {
 
   if (isAdminRoute) {
     return (
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950 text-white">
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white text-slate-900">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <Link to="/admin/login" className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-500 text-lg font-bold text-white">
               AC
             </div>
             <div>
-              <p className="text-lg font-bold">CampusConnect Admin</p>
-              <p className="text-xs text-slate-400">Secure platform access</p>
+              <p className="text-lg font-bold text-slate-900">
+                CampusConnect Admin
+              </p>
+              <p className="text-xs text-slate-500">Secure platform access</p>
             </div>
           </Link>
 
           <Link
             to="/login"
-            className="rounded-lg bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
+            className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
           >
             Student Login
           </Link>

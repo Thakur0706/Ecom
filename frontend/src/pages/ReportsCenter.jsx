@@ -55,9 +55,9 @@ function ReportsCenter() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
-      <div className={`rounded-2xl p-6 shadow-md ${isAdmin ? 'bg-slate-900 text-white' : 'bg-white'}`}>
-        <h1 className="text-3xl font-bold">Reports Center</h1>
-        <p className={`mt-2 text-sm ${isAdmin ? 'text-slate-300' : 'text-slate-500'}`}>
+      <div className={`rounded-2xl p-6 shadow-md ${isAdmin ? 'bg-white' : 'bg-white'}`}>
+        <h1 className="text-3xl font-bold text-slate-900">Reports Center</h1>
+        <p className={`mt-2 text-sm ${isAdmin ? 'text-slate-500' : 'text-slate-500'}`}>
           Generate and download CSV exports for {isAdmin ? 'platform-wide' : 'seller-side'} reporting.
         </p>
       </div>
