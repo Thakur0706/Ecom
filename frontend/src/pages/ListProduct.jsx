@@ -17,6 +17,10 @@ function ListProduct() {
     condition: 'new',
     stock: '',
     imageUrl: '',
+    couponCode: '',
+    couponType: 'percent',
+    couponValue: '',
+    couponMinAmount: '',
   });
 
   const productsQuery = useQuery({
@@ -68,6 +72,15 @@ function ListProduct() {
         ...formData,
         price: Number(formData.price),
         stock: Number(formData.stock),
+        coupon:
+          formData.couponCode.trim() && formData.couponValue
+            ? {
+                code: formData.couponCode.trim().toUpperCase(),
+                type: formData.couponType,
+                value: Number(formData.couponValue),
+                minOrderAmount: Number(formData.couponMinAmount || 0),
+              }
+            : {},
       });
       setSuccessMessage('Product submitted successfully. It is now pending admin approval.');
       setFormData({
@@ -78,6 +91,10 @@ function ListProduct() {
         condition: 'new',
         stock: '',
         imageUrl: '',
+        couponCode: '',
+        couponType: 'percent',
+        couponValue: '',
+        couponMinAmount: '',
       });
     } catch (error) {
       setSuccessMessage(error.response?.data?.message || 'Unable to create product.');
@@ -172,6 +189,46 @@ function ListProduct() {
               placeholder="Public image URL"
               className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
             />
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Optional Coupon</p>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <input
+                  name="couponCode"
+                  type="text"
+                  value={formData.couponCode}
+                  onChange={handleChange}
+                  placeholder="Coupon code"
+                  className="rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+                />
+                <select
+                  name="couponType"
+                  value={formData.couponType}
+                  onChange={handleChange}
+                  className="rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+                >
+                  <option value="percent">Percent Off</option>
+                  <option value="flat">Flat Amount Off</option>
+                </select>
+                <input
+                  name="couponValue"
+                  type="number"
+                  min="0"
+                  value={formData.couponValue}
+                  onChange={handleChange}
+                  placeholder="Coupon value"
+                  className="rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+                />
+                <input
+                  name="couponMinAmount"
+                  type="number"
+                  min="0"
+                  value={formData.couponMinAmount}
+                  onChange={handleChange}
+                  placeholder="Minimum order amount"
+                  className="rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+                />
+              </div>
+            </div>
             <button
               type="submit"
               className="w-full rounded-lg bg-blue-500 px-4 py-3 font-semibold text-white transition hover:bg-indigo-500"
@@ -206,6 +263,11 @@ function ListProduct() {
                   <p className="mt-2 text-sm text-slate-500">
                     {product.category} • Rs {product.price} • Stock {product.stock}
                   </p>
+                  {product.coupon && (
+                    <p className="mt-2 text-sm font-medium text-emerald-700">
+                      Coupon {product.coupon.code} available for this product
+                    </p>
+                  )}
                 </div>
                 <div className="flex gap-3">
                   <button

@@ -51,13 +51,38 @@ export async function register(req, res) {
     items: [],
   });
 
+  let sellerProfile = null;
+
+  if (req.body.desiredRole === ROLES.SELLER) {
+    if (!req.body.sellerApplication) {
+      throw new AppError('Seller application details are required when registering as a seller.', 400);
+    }
+
+    sellerProfile = await SellerProfile.create({
+      ...req.body.sellerApplication,
+      fullName: req.body.sellerApplication.fullName || req.body.name,
+      userId: user._id,
+      status: 'pending',
+      rejectionReason: '',
+      approvedAt: null,
+    });
+  }
+
   const tokens = await issueTokens(user);
   const payload = await buildAuthPayload(user);
 
-  return sendResponse(res, 201, true, 'Registration successful.', {
+  return sendResponse(
+    res,
+    201,
+    true,
+    req.body.desiredRole === ROLES.SELLER
+      ? 'Registration successful. Your seller application is pending admin approval.'
+      : 'Registration successful.',
+    {
     ...payload,
     tokens,
-  });
+    },
+  );
 }
 
 export async function login(req, res) {

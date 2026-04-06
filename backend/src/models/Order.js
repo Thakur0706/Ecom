@@ -1,11 +1,11 @@
-import mongoose from 'mongoose';
-import { ORDER_STATUS, PAYMENT_STATUS } from '../constants/enums.js';
+import mongoose from "mongoose";
+import { ORDER_STATUS, PAYMENT_STATUS } from "../constants/enums.js";
 
 const orderItemSchema = new mongoose.Schema(
   {
     productId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Product',
+      ref: "Product",
       required: true,
     },
     title: {
@@ -14,11 +14,11 @@ const orderItemSchema = new mongoose.Schema(
     },
     category: {
       type: String,
-      default: '',
+      default: "",
     },
     imageUrl: {
       type: String,
-      default: '',
+      default: "",
     },
     quantity: {
       type: Number,
@@ -57,12 +57,12 @@ const orderSchema = new mongoose.Schema(
   {
     buyerId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
     },
     sellerId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
     },
     items: {
@@ -74,29 +74,55 @@ const orderSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
+    platformFee: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    finalAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    originalAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    discountAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    couponCode: {
+      type: String,
+      default: "",
+      trim: true,
+      uppercase: true,
+    },
     paymentStatus: {
       type: String,
       enum: PAYMENT_STATUS,
-      default: 'paid',
+      default: "paid",
     },
     paymentProvider: {
       type: String,
-      default: 'manual',
+      default: "manual",
       trim: true,
     },
     paymentMethod: {
       type: String,
-      default: 'card',
+      default: "card",
       trim: true,
     },
     paymentReference: {
       type: String,
-      default: '',
+      default: "",
       trim: true,
     },
     gatewayOrderId: {
       type: String,
-      default: '',
+      default: "",
       trim: true,
     },
     transactionId: {
@@ -107,11 +133,11 @@ const orderSchema = new mongoose.Schema(
     orderStatus: {
       type: String,
       enum: ORDER_STATUS,
-      default: 'placed',
+      default: "placed",
     },
     statusTimeline: {
       type: [statusTimelineSchema],
-      default: () => [{ status: 'placed', timestamp: new Date() }],
+      default: () => [{ status: "placed", timestamp: new Date() }],
     },
     deliveryAddress: {
       type: String,
@@ -124,4 +150,4 @@ const orderSchema = new mongoose.Schema(
   },
 );
 
-export const Order = mongoose.model('Order', orderSchema);
+export const Order = mongoose.model("Order", orderSchema);

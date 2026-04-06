@@ -96,6 +96,12 @@ function ProductDetail() {
             <p className="text-sm text-slate-500">Seller</p>
             <p className="mt-1 text-lg font-semibold text-slate-900">{product.seller}</p>
             <p className="mt-2 text-sm text-slate-600">Stock available: {product.stock}</p>
+            {product.coupon && (
+              <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                Use coupon <span className="font-semibold text-emerald-900">{product.coupon.code}</span> on card or
+                UPI payments.
+              </div>
+            )}
           </div>
 
           <p className="mt-6 text-base leading-7 text-slate-600">{product.description}</p>

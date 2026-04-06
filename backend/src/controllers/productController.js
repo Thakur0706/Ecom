@@ -1,18 +1,19 @@
-import { Product } from '../models/Product.js';
-import { LISTING_STATUS } from '../constants/enums.js';
-import { AppError, sendResponse } from '../utils/http.js';
-import { buildPagination, getPagination } from '../utils/pagination.js';
+import { Product } from "../models/Product.js";
+import { LISTING_STATUS } from "../constants/enums.js";
+import { sanitizeListingCoupon } from "../utils/couponHelpers.js";
+import { AppError, sendResponse } from "../utils/http.js";
+import { buildPagination, getPagination } from "../utils/pagination.js";
 
 function getProductSort(sort) {
-  if (sort === 'price-asc') {
+  if (sort === "price-asc") {
     return { price: 1, createdAt: -1 };
   }
 
-  if (sort === 'price-desc') {
+  if (sort === "price-desc") {
     return { price: -1, createdAt: -1 };
   }
 
-  if (sort === 'rating') {
+  if (sort === "rating") {
     return { averageRating: -1, createdAt: -1 };
   }
 
@@ -27,9 +28,9 @@ function buildPublicProductFilter(query) {
 
   if (query.search) {
     filter.$or = [
-      { title: { $regex: query.search, $options: 'i' } },
-      { description: { $regex: query.search, $options: 'i' } },
-      { category: { $regex: query.search, $options: 'i' } },
+      { title: { $regex: query.search, $options: "i" } },
+      { description: { $regex: query.search, $options: "i" } },
+      { category: { $regex: query.search, $options: "i" } },
     ];
   }
 
@@ -58,11 +59,11 @@ async function ensureOwnProduct(productId, sellerId) {
   const product = await Product.findById(productId);
 
   if (!product) {
-    throw new AppError('Product not found.', 404);
+    throw new AppError("Product not found.", 404);
   }
 
   if (product.sellerId.toString() !== sellerId.toString()) {
-    throw new AppError('You can only manage your own products.', 403);
+    throw new AppError("You can only manage your own products.", 403);
   }
 
   return product;
@@ -73,14 +74,14 @@ export async function getProducts(req, res) {
   const { page, limit, skip } = getPagination(req.query);
   const [products, total] = await Promise.all([
     Product.find(filter)
-      .populate('sellerId', 'name profilePictureUrl')
+      .populate("sellerId", "name profilePictureUrl")
       .sort(getProductSort(req.query.sort))
       .skip(skip)
       .limit(limit),
     Product.countDocuments(filter),
   ]);
 
-  return sendResponse(res, 200, true, 'Products fetched successfully.', {
+  return sendResponse(res, 200, true, "Products fetched successfully.", {
     products,
     pagination: buildPagination(page, limit, total),
   });
@@ -94,7 +95,7 @@ export async function getOwnProducts(req, res) {
     Product.countDocuments(filter),
   ]);
 
-  return sendResponse(res, 200, true, 'Your products fetched successfully.', {
+  return sendResponse(res, 200, true, "Your products fetched successfully.", {
     products,
     pagination: buildPagination(page, limit, total),
   });
@@ -105,13 +106,13 @@ export async function getProductById(req, res) {
     _id: req.params.id,
     status: LISTING_STATUS.APPROVED,
     isActive: true,
-  }).populate('sellerId', 'name profilePictureUrl');
+  }).populate("sellerId", "name profilePictureUrl");
 
   if (!product) {
-    throw new AppError('Product not found.', 404);
+    throw new AppError("Product not found.", 404);
   }
 
-  return sendResponse(res, 200, true, 'Product fetched successfully.', {
+  return sendResponse(res, 200, true, "Product fetched successfully.", {
     product,
   });
 }
@@ -119,21 +120,25 @@ export async function getProductById(req, res) {
 export async function createProduct(req, res) {
   const product = await Product.create({
     ...req.body,
+    coupon: sanitizeListingCoupon(req.body.coupon),
     sellerId: req.user._id,
-    status: LISTING_STATUS.PENDING,
+    status: LISTING_STATUS.APPROVED,
   });
 
-  return sendResponse(res, 201, true, 'Product submitted for admin approval.', {
+  return sendResponse(res, 201, true, "Product listed successfully.", {
     product,
   });
 }
 
 export async function updateProduct(req, res) {
   const product = await ensureOwnProduct(req.params.id, req.user._id);
-  Object.assign(product, req.body);
+  Object.assign(product, {
+    ...req.body,
+    coupon: sanitizeListingCoupon(req.body.coupon),
+  });
   await product.save();
 
-  return sendResponse(res, 200, true, 'Product updated successfully.', {
+  return sendResponse(res, 200, true, "Product updated successfully.", {
     product,
   });
 }
@@ -142,7 +147,7 @@ export async function deleteProduct(req, res) {
   const product = await ensureOwnProduct(req.params.id, req.user._id);
   await product.deleteOne();
 
-  return sendResponse(res, 200, true, 'Product deleted successfully.', {});
+  return sendResponse(res, 200, true, "Product deleted successfully.", {});
 }
 
 export async function toggleProduct(req, res) {
@@ -150,7 +155,7 @@ export async function toggleProduct(req, res) {
   product.isActive = !product.isActive;
   await product.save();
 
-  return sendResponse(res, 200, true, 'Product status toggled successfully.', {
+  return sendResponse(res, 200, true, "Product status toggled successfully.", {
     product,
   });
 }

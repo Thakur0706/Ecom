@@ -23,6 +23,7 @@ function ServiceDetail() {
   const [bookingForm, setBookingForm] = useState({
     scheduledDate: '',
     duration: '1 hour',
+    couponCode: '',
   });
   const [bookingMessage, setBookingMessage] = useState('');
 
@@ -74,8 +75,9 @@ function ServiceDetail() {
         serviceId: service.id,
         scheduledDate: new Date(bookingForm.scheduledDate).toISOString(),
         duration: bookingForm.duration,
+        couponCode: bookingForm.couponCode.trim().toUpperCase(),
       });
-      setBookingMessage('Your booking request has been recorded successfully.');
+      setBookingMessage('Your booking request has been recorded. The service provider will confirm it before payment.');
       setShowModal(true);
       setShowForm(false);
     } catch (error) {
@@ -109,6 +111,13 @@ function ServiceDetail() {
             <p className="mt-3 text-sm text-slate-600">
               Availability: <span className="font-semibold text-slate-800">{service.availability}</span>
             </p>
+            {service.coupon && (
+              <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                Coupon <span className="font-semibold text-emerald-900">{service.coupon.code}</span> is available for
+                this service. You can also try <span className="font-semibold text-emerald-900">FIRSTBUY10</span> if
+                this is your first successful payment.
+              </div>
+            )}
           </div>
 
           <p className="mt-6 text-base leading-7 text-slate-600">{service.description}</p>
@@ -140,6 +149,18 @@ function ServiceDetail() {
                 placeholder="Duration"
                 className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
               />
+              <input
+                type="text"
+                value={bookingForm.couponCode}
+                onChange={(event) =>
+                  setBookingForm((previous) => ({ ...previous, couponCode: event.target.value.toUpperCase() }))
+                }
+                placeholder="Coupon code (optional)"
+                className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+              />
+              <p className="text-xs leading-5 text-slate-500">
+                After the provider confirms your booking, you will see a Pay Now option in your bookings page.
+              </p>
               <button
                 type="button"
                 onClick={handleBookNow}

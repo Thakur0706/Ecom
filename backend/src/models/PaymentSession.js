@@ -37,6 +37,21 @@ const paymentSessionItemSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
+    originalSubtotal: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    discountAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    payableSubtotal: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
   },
   {
     _id: false,
@@ -65,6 +80,22 @@ const paymentSessionSchema = new mongoose.Schema(
       type: Number,
       required: true,
       min: 0,
+    },
+    originalAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    discountAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    couponCode: {
+      type: String,
+      default: '',
+      trim: true,
+      uppercase: true,
     },
     amountInPaise: {
       type: Number,

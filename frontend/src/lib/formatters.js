@@ -11,6 +11,7 @@ const ORDER_STATUS_LABELS = {
 const PAYMENT_METHOD_LABELS = {
   upi: 'UPI',
   card: 'Card',
+  cod: 'Cash on Delivery',
 };
 
 const BOOKING_STATUS_LABELS = {
@@ -26,6 +27,20 @@ function sentenceCase(value = '') {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+}
+
+function formatCoupon(coupon) {
+  if (!coupon?.code) {
+    return null;
+  }
+
+  return {
+    code: coupon.code,
+    type: coupon.type,
+    value: coupon.value,
+    minOrderAmount: coupon.minOrderAmount || 0,
+    description: coupon.description || '',
+  };
 }
 
 export function imageWithFallback(url) {
@@ -50,6 +65,7 @@ export function formatProduct(product) {
     sellerId: product.sellerId?._id || product.sellerId,
     sellerProfilePictureUrl: product.sellerId?.profilePictureUrl || '',
     rating: product.averageRating || 0,
+    coupon: formatCoupon(product.coupon),
     stock: product.stock,
     isActive: product.isActive,
     status: product.status,
@@ -75,6 +91,7 @@ export function formatService(service) {
     sellerId: service.sellerId?._id || service.sellerId,
     availability: service.availability,
     rating: service.averageRating || 0,
+    coupon: formatCoupon(service.coupon),
     isActive: service.isActive,
     status: service.status,
     createdAt: service.createdAt,
@@ -105,10 +122,10 @@ export function formatOrder(order) {
   const paymentMethodLabel = PAYMENT_METHOD_LABELS[paymentMethod] || sentenceCase(paymentMethod);
   const paymentProviderLabel = paymentProvider === 'razorpay' ? 'Razorpay' : sentenceCase(paymentProvider);
   const paymentDisplayLabel =
-    paymentProvider === 'razorpay'
-      ? `${paymentMethodLabel} via ${paymentProviderLabel}`
-      : paymentProvider === 'simulation'
-        ? `${paymentMethodLabel} (Simulated)`
+    paymentMethod === 'cod'
+      ? PAYMENT_METHOD_LABELS.cod
+      : paymentProvider === 'razorpay'
+        ? `${paymentMethodLabel} via ${paymentProviderLabel}`
         : paymentMethodLabel;
 
   return {
@@ -133,11 +150,15 @@ export function formatOrder(order) {
     quantity: totalQuantity,
     unitPrice: totalQuantity ? Math.round(order.totalAmount / totalQuantity) : primaryItem.price || 0,
     totalAmount: order.totalAmount,
+    originalAmount: order.originalAmount || order.totalAmount,
+    discountAmount: order.discountAmount || 0,
+    couponCode: order.couponCode || '',
     platformFee: 0,
     paymentStatus: sentenceCase(order.paymentStatus),
     paymentMethod: paymentDisplayLabel,
     paymentProvider: paymentProviderLabel,
     paymentReference: order.paymentReference || order.transactionId,
+    gatewayOrderId: order.gatewayOrderId || '',
     orderStatus: ORDER_STATUS_LABELS[order.orderStatus] || sentenceCase(order.orderStatus),
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
@@ -162,10 +183,19 @@ export function formatBooking(booking) {
     serviceId: booking.serviceId?._id || booking.serviceId,
     serviceTitle: booking.serviceId?.title || booking.serviceTitle || 'Service booking',
     totalAmount: booking.totalAmount,
+    originalAmount: booking.originalAmount || booking.totalAmount,
+    discountAmount: booking.discountAmount || 0,
+    couponCode: booking.couponCode || '',
     paymentStatus: sentenceCase(booking.paymentStatus),
+    paymentMethod: PAYMENT_METHOD_LABELS[booking.paymentMethod] || sentenceCase(booking.paymentMethod || ''),
+    paymentReference: booking.paymentReference || booking.transactionId,
+    gatewayOrderId: booking.gatewayOrderId || '',
     bookingStatus: BOOKING_STATUS_LABELS[booking.bookingStatus] || sentenceCase(booking.bookingStatus),
     scheduledDate: booking.scheduledDate,
     duration: booking.duration,
+    sellerConfirmedAt: booking.sellerConfirmedAt,
+    paidAt: booking.paidAt,
+    chatEnabled: booking.paymentStatus === 'paid',
     createdAt: booking.createdAt,
     transactionId: booking.transactionId,
   };
