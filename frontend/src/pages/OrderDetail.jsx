@@ -16,6 +16,7 @@ const categoryStyles = {
 const paymentStyles = {
   Paid: 'bg-emerald-100 text-emerald-700',
   Pending: 'bg-amber-100 text-amber-700',
+  Failed: 'bg-rose-100 text-rose-700',
 };
 
 const nextStatusMap = {

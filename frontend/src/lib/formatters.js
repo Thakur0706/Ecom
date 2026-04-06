@@ -8,6 +8,11 @@ const ORDER_STATUS_LABELS = {
   cancelled: 'Cancelled',
 };
 
+const PAYMENT_METHOD_LABELS = {
+  upi: 'UPI',
+  card: 'Card',
+};
+
 const BOOKING_STATUS_LABELS = {
   pending: 'Pending',
   confirmed: 'Confirmed',
@@ -95,6 +100,16 @@ export function formatOrder(order) {
   const items = order.items || [];
   const primaryItem = items[0] || {};
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+  const paymentMethod = order.paymentMethod || 'card';
+  const paymentProvider = order.paymentProvider || 'manual';
+  const paymentMethodLabel = PAYMENT_METHOD_LABELS[paymentMethod] || sentenceCase(paymentMethod);
+  const paymentProviderLabel = paymentProvider === 'razorpay' ? 'Razorpay' : sentenceCase(paymentProvider);
+  const paymentDisplayLabel =
+    paymentProvider === 'razorpay'
+      ? `${paymentMethodLabel} via ${paymentProviderLabel}`
+      : paymentProvider === 'simulation'
+        ? `${paymentMethodLabel} (Simulated)`
+        : paymentMethodLabel;
 
   return {
     id: order._id,
@@ -120,7 +135,9 @@ export function formatOrder(order) {
     totalAmount: order.totalAmount,
     platformFee: 0,
     paymentStatus: sentenceCase(order.paymentStatus),
-    paymentMethod: 'Dummy Card',
+    paymentMethod: paymentDisplayLabel,
+    paymentProvider: paymentProviderLabel,
+    paymentReference: order.paymentReference || order.transactionId,
     orderStatus: ORDER_STATUS_LABELS[order.orderStatus] || sentenceCase(order.orderStatus),
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,

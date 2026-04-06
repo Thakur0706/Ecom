@@ -78,6 +78,21 @@ export const cartUpdateSchema = z.object({
 
 export const orderCreateSchema = z.object({
   deliveryAddress: nonEmptyString('Delivery address'),
+  paymentMethod: z.enum(['upi', 'card']).optional().default('card'),
+  paymentProvider: z.enum(['manual', 'simulation', 'razorpay']).optional().default('manual'),
+  paymentReference: z.string().trim().optional().default(''),
+});
+
+export const orderCheckoutSchema = z.object({
+  deliveryAddress: nonEmptyString('Delivery address'),
+  preferredMethod: z.enum(['upi', 'card']).optional().default('upi'),
+});
+
+export const orderPaymentVerificationSchema = z.object({
+  sessionId: nonEmptyString('Checkout session ID'),
+  razorpayOrderId: nonEmptyString('Razorpay order ID'),
+  razorpayPaymentId: nonEmptyString('Razorpay payment ID'),
+  razorpaySignature: nonEmptyString('Razorpay signature'),
 });
 
 export const orderStatusSchema = z.object({

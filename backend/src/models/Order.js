@@ -79,6 +79,26 @@ const orderSchema = new mongoose.Schema(
       enum: PAYMENT_STATUS,
       default: 'paid',
     },
+    paymentProvider: {
+      type: String,
+      default: 'manual',
+      trim: true,
+    },
+    paymentMethod: {
+      type: String,
+      default: 'card',
+      trim: true,
+    },
+    paymentReference: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    gatewayOrderId: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     transactionId: {
       type: String,
       required: true,

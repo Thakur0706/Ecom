@@ -1,19 +1,40 @@
 import { Router } from 'express';
 import {
   cancelOrder,
+  createCheckoutSession,
   createOrder,
   getMyPurchases,
   getMySales,
   getOrderById,
   updateOrderStatus,
+  verifyCheckoutPayment,
 } from '../controllers/orderController.js';
 import { authenticate, authorizeRoles, requireApprovedSeller } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../utils/http.js';
-import { orderCreateSchema, orderStatusSchema } from '../schemas/index.js';
+import {
+  orderCheckoutSchema,
+  orderCreateSchema,
+  orderPaymentVerificationSchema,
+  orderStatusSchema,
+} from '../schemas/index.js';
 
 const router = Router();
 
+router.post(
+  '/checkout-session',
+  authenticate,
+  authorizeRoles('buyer', 'seller'),
+  validate(orderCheckoutSchema),
+  asyncHandler(createCheckoutSession),
+);
+router.post(
+  '/verify-payment',
+  authenticate,
+  authorizeRoles('buyer', 'seller'),
+  validate(orderPaymentVerificationSchema),
+  asyncHandler(verifyCheckoutPayment),
+);
 router.post(
   '/',
   authenticate,

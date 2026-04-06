@@ -171,6 +171,8 @@ export const api = {
     clear: () => apiClient.delete('/cart/clear').then(unwrap),
   },
   orders: {
+    createCheckoutSession: (payload) => apiClient.post('/orders/checkout-session', payload).then(unwrap),
+    verifyPayment: (payload) => apiClient.post('/orders/verify-payment', payload).then(unwrap),
     create: (payload) => apiClient.post('/orders', payload).then(unwrap),
     myPurchases: (params = {}) => apiClient.get('/orders/my-purchases', { params }).then(unwrap),
     mySales: (params = {}) => apiClient.get('/orders/my-sales', { params }).then(unwrap),
