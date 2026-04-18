@@ -6,7 +6,7 @@ function Register() {
   const { currentUser, register, authPending } = useAppContext();
   const navigate = useNavigate();
   const [error, setError] = useState("");
-  const [selectedRole, setSelectedRole] = useState(null); // 'buyer' or 'seller'
+  const [selectedRole, setSelectedRole] = useState(null); // 'buyer' or 'supplier'
   const [showPendingApproval, setShowPendingApproval] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -15,8 +15,13 @@ function Register() {
     password: "",
     confirmPassword: "",
   });
-  const [sellerData, setSellerData] = useState({
+  const [supplierData, setSupplierData] = useState({
     fullName: "",
+    storeName: "",
+    businessType: "individual", // 'physical_shop', 'side_business', 'individual', 'freelance'
+    businessAddress: "",
+    businessDescription: "",
+    isStudent: false,
     studentId: "",
     collegeName: "",
     department: "",
@@ -26,14 +31,14 @@ function Register() {
     studentIdUrl: "",
   });
 
-  if (currentUser) {
+  if (currentUser && !showPendingApproval) {
     return (
       <Navigate
         to={
           currentUser.role === "admin"
             ? "/admin/dashboard"
-            : currentUser.role === "seller"
-              ? "/seller/dashboard"
+            : currentUser.role === "supplier"
+              ? "/supplier/dashboard"
               : "/dashboard"
         }
         replace
@@ -46,28 +51,45 @@ function Register() {
     setFormData((previous) => ({ ...previous, [name]: value }));
   };
 
-  const handleSellerChange = (event) => {
-    const { name, value } = event.target;
-    setSellerData((previous) => ({ ...previous, [name]: value }));
+  const handleSupplierChange = (event) => {
+    const { name, value, type, checked } = event.target;
+    setSupplierData((previous) => ({
+      ...previous,
+      [name]: type === "checkbox" ? checked : value,
+    }));
   };
 
-  const validateSellerForm = () => {
-    const requiredFields = [
+  const validateSupplierForm = () => {
+    const commonFields = [
       "fullName",
-      "studentId",
-      "collegeName",
-      "department",
+      "storeName",
       "contactNumber",
       "upiOrBankDetails",
       "govIdUrl",
-      "studentIdUrl",
     ];
-    for (const field of requiredFields) {
-      if (!sellerData[field].trim()) {
+    
+    for (const field of commonFields) {
+      if (!supplierData[field].trim()) {
         setError(`${field.replace(/([A-Z])/g, " $1").trim()} is required.`);
         return false;
       }
     }
+
+    if (supplierData.isStudent) {
+      const studentFields = ["studentId", "collegeName", "department", "studentIdUrl"];
+      for (const field of studentFields) {
+        if (!supplierData[field].trim()) {
+          setError(`${field.replace(/([A-Z])/g, " $1").trim()} is required for student verification.`);
+          return false;
+        }
+      }
+    }
+
+    if (supplierData.businessType === "physical_shop" && !supplierData.businessAddress.trim()) {
+      setError("Business address is required for physical shops.");
+      return false;
+    }
+
     return true;
   };
 
@@ -79,7 +101,7 @@ function Register() {
       return;
     }
 
-    if (selectedRole === "seller" && !validateSellerForm()) {
+    if (selectedRole === "supplier" && !validateSupplierForm()) {
       return;
     }
 
@@ -93,14 +115,14 @@ function Register() {
         profilePictureUrl: formData.profilePictureUrl,
       };
 
-      if (selectedRole === "seller") {
-        payload.desiredRole = "seller";
-        payload.sellerApplication = sellerData;
+      if (selectedRole === "supplier") {
+        payload.desiredRole = "supplier";
+        payload.sellerApplication = supplierData;
       }
 
       await register(payload);
 
-      if (selectedRole === "seller") {
+      if (selectedRole === "supplier") {
         setShowPendingApproval(true);
       } else {
         navigate("/dashboard");
@@ -122,7 +144,7 @@ function Register() {
                 Application Submitted!
               </h2>
               <p className="text-slate-600 mb-4">
-                Thank you for registering as a seller on CampusConnect. Your
+                Thank you for registering as a supplier on CampusConnect. Your
                 application is now under review by our admin team.
               </p>
               <p className="text-sm text-slate-500 mb-6">
@@ -176,12 +198,12 @@ function Register() {
               </button>
 
               <button
-                onClick={() => setSelectedRole("seller")}
+                onClick={() => setSelectedRole("supplier")}
                 className="rounded-xl border-2 border-slate-200 px-6 py-8 text-left transition hover:border-green-500 hover:bg-green-50"
               >
                 <div className="mb-3 text-3xl">📦</div>
                 <h3 className="text-lg font-bold text-slate-900 mb-1">
-                  I'm a Seller
+                  I'm a Supplier
                 </h3>
                 <p className="text-sm text-slate-600">
                   Sell products and services, build your business, and connect
@@ -207,7 +229,7 @@ function Register() {
                 <h1 className="text-3xl font-bold text-slate-900">
                   {selectedRole === "buyer"
                     ? "Create your account"
-                    : "Become a seller"}
+                    : "Become a supplier"}
                 </h1>
                 <p className="mt-2 text-sm text-slate-500">
                   {selectedRole === "buyer"
@@ -322,11 +344,11 @@ function Register() {
               </div>
 
               {/* Seller-specific fields */}
-              {selectedRole === "seller" && (
+              {selectedRole === "supplier" && (
                 <>
                   <div className="md:col-span-2 mt-6 pt-6 border-t border-slate-200">
                     <h3 className="font-semibold text-slate-900 mb-4">
-                      Seller Details
+                      Business Details
                     </h3>
                   </div>
 
@@ -335,112 +357,194 @@ function Register() {
                       htmlFor="fullName"
                       className="mb-2 block text-sm font-semibold text-slate-700"
                     >
-                      Full Name
+                      Legal Full Name (for Identity Verification)
                     </label>
                     <input
                       id="fullName"
                       name="fullName"
                       type="text"
-                      value={sellerData.fullName}
-                      onChange={handleSellerChange}
+                      value={supplierData.fullName}
+                      onChange={handleSupplierChange}
                       required
+                      placeholder="As on your ID card"
                       className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
                     />
                   </div>
 
-                  <div>
+                  <div className="md:col-span-2">
                     <label
-                      htmlFor="studentId"
+                      className="mb-6 flex items-center gap-3 cursor-pointer group"
+                    >
+                      <input
+                        type="checkbox"
+                        name="isStudent"
+                        checked={supplierData.isStudent}
+                        onChange={handleSupplierChange}
+                        className="h-5 w-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm font-semibold text-slate-700 group-hover:text-blue-600 transition">
+                        I am a Student Seller (Campus Vendor)
+                      </span>
+                    </label>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label
+                      htmlFor="storeName"
                       className="mb-2 block text-sm font-semibold text-slate-700"
                     >
-                      Student ID
+                      Shop / Business Name
                     </label>
                     <input
-                      id="studentId"
-                      name="studentId"
+                      id="storeName"
+                      name="storeName"
                       type="text"
-                      value={sellerData.studentId}
-                      onChange={handleSellerChange}
-                      placeholder="e.g., SPIT2026001"
+                      value={supplierData.storeName}
+                      onChange={handleSupplierChange}
+                      placeholder="e.g., TechGizmos Store or Arjun's Side Business"
                       required
                       className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
                     />
                   </div>
 
-                  <div>
+                  <div className="md:col-span-2">
                     <label
-                      htmlFor="collegeName"
+                      htmlFor="businessType"
                       className="mb-2 block text-sm font-semibold text-slate-700"
                     >
-                      College Name
+                      Business Type
                     </label>
-                    <input
-                      id="collegeName"
-                      name="collegeName"
-                      type="text"
-                      value={sellerData.collegeName}
-                      onChange={handleSellerChange}
-                      placeholder="e.g., SPIT, VESIT, DJ Sanghvi"
-                      required
+                    <select
+                      id="businessType"
+                      name="businessType"
+                      value={supplierData.businessType}
+                      onChange={handleSupplierChange}
+                      className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500 bg-white"
+                    >
+                      <option value="individual">Individual / Freelancer</option>
+                      <option value="side_business">Side Business (Part-time)</option>
+                      <option value="physical_shop">Physical Shop / Professional Outlet</option>
+                      <option value="freelance">Freelance Services</option>
+                    </select>
+                  </div>
+
+                  {supplierData.businessType === "physical_shop" && (
+                    <div className="md:col-span-2">
+                      <label
+                        htmlFor="businessAddress"
+                        className="mb-2 block text-sm font-semibold text-slate-700"
+                      >
+                        Shop Address
+                      </label>
+                      <textarea
+                        id="businessAddress"
+                        name="businessAddress"
+                        value={supplierData.businessAddress}
+                        onChange={handleSupplierChange}
+                        rows="3"
+                        placeholder="Enter full address of your shop..."
+                        className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+                      />
+                    </div>
+                  )}
+
+                  <div className="md:col-span-2">
+                    <label
+                      htmlFor="businessDescription"
+                      className="mb-2 block text-sm font-semibold text-slate-700"
+                    >
+                      Tell us about your business
+                    </label>
+                    <textarea
+                      id="businessDescription"
+                      name="businessDescription"
+                      value={supplierData.businessDescription}
+                      onChange={handleSupplierChange}
+                      rows="3"
+                      placeholder="What do you sell? How long have you been in business?"
                       className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
                     />
                   </div>
 
-                  <div>
-                    <label
-                      htmlFor="department"
-                      className="mb-2 block text-sm font-semibold text-slate-700"
-                    >
-                      Department
-                    </label>
-                    <input
-                      id="department"
-                      name="department"
-                      type="text"
-                      value={sellerData.department}
-                      onChange={handleSellerChange}
-                      placeholder="e.g., Information Technology"
-                      required
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
-                    />
-                  </div>
+                  {supplierData.isStudent && (
+                    <>
+                      <div className="md:col-span-2 mt-4 pt-4 border-t border-slate-100 italic text-sm text-slate-500">
+                        Student-specific verification details:
+                      </div>
+                      <div>
+                        <label
+                          htmlFor="collegeName"
+                          className="mb-2 block text-sm font-semibold text-slate-700"
+                        >
+                          College Name
+                        </label>
+                        <input
+                          id="collegeName"
+                          name="collegeName"
+                          type="text"
+                          value={supplierData.collegeName}
+                          onChange={handleSupplierChange}
+                          placeholder="e.g., SPIT, VESIT"
+                          className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label
+                          htmlFor="studentId"
+                          className="mb-2 block text-sm font-semibold text-slate-700"
+                        >
+                          Student ID
+                        </label>
+                        <input
+                          id="studentId"
+                          name="studentId"
+                          type="text"
+                          value={supplierData.studentId}
+                          onChange={handleSupplierChange}
+                          className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+                        />
+                      </div>
+                    </>
+                  )}
 
-                  <div>
-                    <label
-                      htmlFor="contactNumber"
-                      className="mb-2 block text-sm font-semibold text-slate-700"
-                    >
-                      Contact Number
-                    </label>
-                    <input
-                      id="contactNumber"
-                      name="contactNumber"
-                      type="tel"
-                      value={sellerData.contactNumber}
-                      onChange={handleSellerChange}
-                      placeholder="10-digit mobile number"
-                      required
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="upiOrBankDetails"
-                      className="mb-2 block text-sm font-semibold text-slate-700"
-                    >
-                      UPI ID / Bank Account
-                    </label>
-                    <input
-                      id="upiOrBankDetails"
-                      name="upiOrBankDetails"
-                      type="text"
-                      value={sellerData.upiOrBankDetails}
-                      onChange={handleSellerChange}
-                      placeholder="e.g., yourname@upi or account details"
-                      required
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
-                    />
+                  <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-4 md:col-span-2">
+                    <h4 className="font-semibold text-slate-900">Verification & Contact</h4>
+                    <div className="grid gap-5 md:grid-cols-2">
+                      <div>
+                        <label
+                          htmlFor="contactNumber"
+                          className="mb-2 block text-sm font-semibold text-slate-700"
+                        >
+                          Contact Number
+                        </label>
+                        <input
+                          id="contactNumber"
+                          name="contactNumber"
+                          type="tel"
+                          value={supplierData.contactNumber}
+                          onChange={handleSupplierChange}
+                          required
+                          className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label
+                          htmlFor="upiOrBankDetails"
+                          className="mb-2 block text-sm font-semibold text-slate-700"
+                        >
+                          UPI / Bank Details (for Payouts)
+                        </label>
+                        <input
+                          id="upiOrBankDetails"
+                          name="upiOrBankDetails"
+                          type="text"
+                          value={supplierData.upiOrBankDetails}
+                          onChange={handleSupplierChange}
+                          required
+                          className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   <div className="md:col-span-2">
@@ -448,42 +552,42 @@ function Register() {
                       htmlFor="govIdUrl"
                       className="mb-2 block text-sm font-semibold text-slate-700"
                     >
-                      Government ID Document URL
+                      Government ID URL (Verified Document)
                     </label>
                     <input
                       id="govIdUrl"
                       name="govIdUrl"
                       type="url"
-                      value={sellerData.govIdUrl}
-                      onChange={handleSellerChange}
-                      placeholder="Link to Aadhar/Passport document"
+                      value={supplierData.govIdUrl}
+                      onChange={handleSupplierChange}
                       required
+                      placeholder="Link to hosted Aadhar/Passport/License"
                       className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
                     />
                   </div>
 
-                  <div className="md:col-span-2">
-                    <label
-                      htmlFor="studentIdUrl"
-                      className="mb-2 block text-sm font-semibold text-slate-700"
-                    >
-                      Student ID Document URL
-                    </label>
-                    <input
-                      id="studentIdUrl"
-                      name="studentIdUrl"
-                      type="url"
-                      value={sellerData.studentIdUrl}
-                      onChange={handleSellerChange}
-                      placeholder="Link to Student ID document"
-                      required
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
-                    />
-                  </div>
+                  {supplierData.isStudent && (
+                    <div className="md:col-span-2">
+                      <label
+                        htmlFor="studentIdUrl"
+                        className="mb-2 block text-sm font-semibold text-slate-700"
+                      >
+                        Student ID Card URL
+                      </label>
+                      <input
+                        id="studentIdUrl"
+                        name="studentIdUrl"
+                        type="url"
+                        value={supplierData.studentIdUrl}
+                        onChange={handleSupplierChange}
+                        placeholder="Link to hosted ID card"
+                        className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500"
+                      />
+                    </div>
+                  )}
 
-                  <div className="md:col-span-2 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-700">
-                    <strong>Note:</strong> All documents will be verified by our
-                    admin team. Once approved, you'll be able to start selling.
+                  <div className="md:col-span-2 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-700 shadow-inner">
+                    <strong>Note:</strong> CampusConnect verifies all suppliers to maintain safety. Our admin team will review your application within 24-48 hours.
                   </div>
                 </>
               )}

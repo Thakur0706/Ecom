@@ -1,16 +1,9 @@
 import { Booking } from '../models/Booking.js';
+import { Coupon } from '../models/Coupon.js';
 import { Order } from '../models/Order.js';
 import { AppError } from './http.js';
 
-export const FIRST_TIME_COUPON = {
-  code: 'FIRSTBUY10',
-  type: 'percent',
-  value: 10,
-  minOrderAmount: 200,
-  description: '10% off on your first successful online payment',
-};
-
-function toFixedNumber(value) {
+function toMoney(value) {
   return Number(Number(value || 0).toFixed(2));
 }
 
@@ -18,169 +11,112 @@ export function normalizeCouponCode(value = '') {
   return value.trim().toUpperCase();
 }
 
-export function sanitizeListingCoupon(coupon) {
-  if (!coupon?.code || !coupon?.type || !coupon?.value) {
-    return null;
-  }
-
-  return {
-    code: normalizeCouponCode(coupon.code),
-    type: coupon.type,
-    value: Number(coupon.value),
-    minOrderAmount: Number(coupon.minOrderAmount || 0),
-    description: coupon.description?.trim() || '',
-  };
-}
-
-export async function isFirstTimeBuyer(userId) {
-  const [paidOrders, paidBookings] = await Promise.all([
-    Order.countDocuments({ buyerId: userId, paymentStatus: 'paid' }),
-    Booking.countDocuments({ buyerId: userId, paymentStatus: 'paid' }),
-  ]);
-
-  return paidOrders === 0 && paidBookings === 0;
-}
-
 export function calculateCouponDiscount(subtotal, coupon) {
-  if (!coupon) {
-    return 0;
-  }
+  const amount = Number(subtotal || 0);
 
-  const numericSubtotal = Number(subtotal || 0);
-
-  if (numericSubtotal <= 0) {
+  if (!coupon || amount <= 0) {
     return 0;
   }
 
   const rawDiscount =
-    coupon.type === 'flat'
-      ? Number(coupon.value)
-      : (numericSubtotal * Number(coupon.value)) / 100;
+    coupon.type === 'flat' ? Number(coupon.value) : (amount * Number(coupon.value)) / 100;
+  const cappedDiscount =
+    coupon.type === 'percent' && Number(coupon.maxDiscount || 0) > 0
+      ? Math.min(rawDiscount, Number(coupon.maxDiscount))
+      : rawDiscount;
 
-  return toFixedNumber(Math.min(numericSubtotal, rawDiscount));
+  return toMoney(Math.min(amount, cappedDiscount));
 }
 
-function allocateDiscountAcrossSubtotals(entries, totalDiscount) {
-  const allocationMap = new Map();
+async function getCouponUsageCount(code) {
+  const [orderCount, bookingCount] = await Promise.all([
+    Order.countDocuments({ couponCode: code }),
+    Booking.countDocuments({ couponCode: code }),
+  ]);
 
-  if (!entries.length || totalDiscount <= 0) {
-    return allocationMap;
+  return orderCount + bookingCount;
+}
+
+async function getPerUserCouponUsageCount(code, userId) {
+  if (!userId) {
+    return 0;
   }
 
-  const totalSubtotal = entries.reduce((sum, entry) => sum + Number(entry.subtotal || 0), 0);
-  let allocatedTotal = 0;
+  const [orderCount, bookingCount] = await Promise.all([
+    Order.countDocuments({ couponCode: code, buyerId: userId }),
+    Booking.countDocuments({ couponCode: code, buyerId: userId }),
+  ]);
 
-  entries.forEach((entry, index) => {
-    const isLast = index === entries.length - 1;
-    const share = totalSubtotal === 0 ? 0 : (totalDiscount * entry.subtotal) / totalSubtotal;
-    const roundedShare = isLast
-      ? toFixedNumber(totalDiscount - allocatedTotal)
-      : toFixedNumber(share);
-
-    allocationMap.set(entry.key, roundedShare);
-    allocatedTotal = toFixedNumber(allocatedTotal + roundedShare);
-  });
-
-  return allocationMap;
+  return orderCount + bookingCount;
 }
 
-export async function resolveProductCoupon({ couponCode, validItems, userId }) {
-  const normalizedCode = normalizeCouponCode(couponCode);
+function ensureCouponIsWithinValidity(coupon) {
+  const now = new Date();
+
+  if (!coupon.isActive) {
+    throw new AppError('This coupon is inactive.', 400);
+  }
+
+  if (coupon.startsAt && new Date(coupon.startsAt) > now) {
+    throw new AppError('This coupon is not active yet.', 400);
+  }
+
+  if (coupon.endsAt && new Date(coupon.endsAt) < now) {
+    throw new AppError('This coupon has expired.', 400);
+  }
+}
+
+export async function validateCoupon({
+  code,
+  orderTotal,
+  items = [],
+  userId = null,
+}) {
+  const normalizedCode = normalizeCouponCode(code);
 
   if (!normalizedCode) {
-    return {
-      couponCode: '',
-      discountAmount: 0,
-      discountByProductId: new Map(),
-      couponMeta: null,
-    };
+    throw new AppError('Coupon code is required.', 400);
   }
 
-  let eligibleItems = [];
-  let couponMeta = null;
+  const coupon = await Coupon.findOne({ code: normalizedCode });
 
-  if (normalizedCode === FIRST_TIME_COUPON.code) {
-    const isEligible = await isFirstTimeBuyer(userId);
+  if (!coupon) {
+    throw new AppError('Coupon code not found.', 404);
+  }
 
-    if (!isEligible) {
-      throw new AppError('The first-time coupon is only available before your first paid order or booking.', 400);
-    }
+  ensureCouponIsWithinValidity(coupon);
 
-    eligibleItems = validItems;
-    couponMeta = FIRST_TIME_COUPON;
-  } else {
-    eligibleItems = validItems.filter(
-      (item) => normalizeCouponCode(item.productId?.coupon?.code) === normalizedCode,
+  const [usageCount, perUserUsageCount] = await Promise.all([
+    getCouponUsageCount(normalizedCode),
+    getPerUserCouponUsageCount(normalizedCode, userId),
+  ]);
+
+  if (Number(coupon.usageLimit || 0) > 0 && usageCount >= Number(coupon.usageLimit)) {
+    throw new AppError('This coupon has reached its usage limit.', 400);
+  }
+
+  if (Number(coupon.perUserLimit || 0) > 0 && perUserUsageCount >= Number(coupon.perUserLimit)) {
+    throw new AppError('You have already used this coupon the maximum number of times.', 400);
+  }
+
+  const numericOrderTotal = Number(orderTotal || 0);
+
+  if (numericOrderTotal < Number(coupon.minOrderValue || 0)) {
+    throw new AppError(
+      `This coupon requires a minimum order value of Rs ${coupon.minOrderValue}.`,
+      400,
     );
-
-    if (!eligibleItems.length) {
-      throw new AppError('This coupon is not valid for the items in your cart.', 400);
-    }
-
-    couponMeta = eligibleItems[0].productId?.coupon || null;
   }
 
-  const eligibleSubtotal = toFixedNumber(
-    eligibleItems.reduce((sum, item) => sum + item.productId.price * item.quantity, 0),
-  );
-
-  if (eligibleSubtotal < Number(couponMeta?.minOrderAmount || 0)) {
-    throw new AppError(`This coupon requires a minimum spend of Rs ${couponMeta.minOrderAmount}.`, 400);
-  }
-
-  const discountAmount = calculateCouponDiscount(eligibleSubtotal, couponMeta);
-  const discountByProductId = allocateDiscountAcrossSubtotals(
-    eligibleItems.map((item) => ({
-      key: item.productId._id.toString(),
-      subtotal: item.productId.price * item.quantity,
-    })),
-    discountAmount,
-  );
+  const discountAmount = calculateCouponDiscount(numericOrderTotal, coupon);
 
   return {
-    couponCode: normalizedCode,
+    coupon,
+    items,
+    orderTotal: toMoney(numericOrderTotal),
     discountAmount,
-    discountByProductId,
-    couponMeta,
-  };
-}
-
-export async function resolveServiceCoupon({ couponCode, service, userId }) {
-  const normalizedCode = normalizeCouponCode(couponCode);
-
-  if (!normalizedCode) {
-    return {
-      couponCode: '',
-      discountAmount: 0,
-      couponMeta: null,
-    };
-  }
-
-  let couponMeta = null;
-
-  if (normalizedCode === FIRST_TIME_COUPON.code) {
-    const isEligible = await isFirstTimeBuyer(userId);
-
-    if (!isEligible) {
-      throw new AppError('The first-time coupon is only available before your first paid order or booking.', 400);
-    }
-
-    couponMeta = FIRST_TIME_COUPON;
-  } else if (normalizeCouponCode(service?.coupon?.code) === normalizedCode) {
-    couponMeta = service.coupon;
-  }
-
-  if (!couponMeta) {
-    throw new AppError('This coupon is not valid for the selected service.', 400);
-  }
-
-  if (Number(service.price) < Number(couponMeta.minOrderAmount || 0)) {
-    throw new AppError(`This coupon requires a minimum spend of Rs ${couponMeta.minOrderAmount}.`, 400);
-  }
-
-  return {
-    couponCode: normalizedCode,
-    discountAmount: calculateCouponDiscount(service.price, couponMeta),
-    couponMeta,
+    finalTotal: toMoney(numericOrderTotal - discountAmount),
+    usageCount,
+    perUserUsageCount,
   };
 }

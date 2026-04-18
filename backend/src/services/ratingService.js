@@ -21,14 +21,27 @@ async function getAverageRating(targetType, targetId) {
   return result[0]?.averageRating || 0;
 }
 
+async function getReviewCount(targetType, targetId) {
+  return Review.countDocuments({
+    targetType,
+    targetId,
+  });
+}
+
 export async function refreshProductRating(productId) {
-  const averageRating = await getAverageRating('product', productId);
-  await Product.findByIdAndUpdate(productId, { averageRating });
+  const [averageRating, reviewCount] = await Promise.all([
+    getAverageRating('product', productId),
+    getReviewCount('product', productId),
+  ]);
+  await Product.findByIdAndUpdate(productId, { averageRating, reviewCount });
   return averageRating;
 }
 
 export async function refreshServiceRating(serviceId) {
-  const averageRating = await getAverageRating('service', serviceId);
-  await Service.findByIdAndUpdate(serviceId, { averageRating });
+  const [averageRating, reviewCount] = await Promise.all([
+    getAverageRating('service', serviceId),
+    getReviewCount('service', serviceId),
+  ]);
+  await Service.findByIdAndUpdate(serviceId, { averageRating, reviewCount });
   return averageRating;
 }

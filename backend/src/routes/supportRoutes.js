@@ -2,14 +2,14 @@ import { Router } from 'express';
 import { createTicket, getMyTickets } from '../controllers/ticketController.js';
 import { authenticate, authorizeRoles } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { asyncHandler } from '../utils/http.js';
 import { ticketSchema } from '../schemas/index.js';
+import { asyncHandler } from '../utils/http.js';
 
 const router = Router();
 
-router.use(authenticate, authorizeRoles('buyer', 'seller'));
+router.use(authenticate, authorizeRoles('buyer', 'supplier'));
 
-router.post('/', validate(ticketSchema), asyncHandler(createTicket));
-router.get('/mine', asyncHandler(getMyTickets));
+router.post('/tickets', validate(ticketSchema), asyncHandler(createTicket));
+router.get('/tickets', asyncHandler(getMyTickets));
 
 export default router;

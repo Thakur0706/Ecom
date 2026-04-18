@@ -1,5 +1,5 @@
-import { ROLES, SELLER_STATUS } from '../constants/enums.js';
-import { SellerProfile } from '../models/SellerProfile.js';
+import { ROLES, SUPPLIER_STATUS } from '../constants/enums.js';
+import { SupplierProfile } from '../models/SupplierProfile.js';
 import { User } from '../models/User.js';
 import { AppError } from '../utils/http.js';
 import { verifyAccessToken } from '../utils/tokens.js';
@@ -45,25 +45,41 @@ export function authorizeRoles(...roles) {
   };
 }
 
-export async function requireApprovedSeller(req, _res, next) {
+async function attachApprovedSupplierProfile(req) {
+  const supplierProfile = await SupplierProfile.findOne({ userId: req.user._id });
+
+  if (!supplierProfile || supplierProfile.status !== SUPPLIER_STATUS.APPROVED) {
+    throw new AppError('Your supplier account is not approved yet.', 403);
+  }
+
+  req.supplierProfile = supplierProfile;
+}
+
+export async function requireApprovedSupplier(req, _res, next) {
   try {
     if (!req.user) {
       throw new AppError('Authentication required.', 401);
     }
 
-    if (req.user.role !== ROLES.SELLER) {
-      throw new AppError('Only approved sellers can access this resource.', 403);
+    if (req.user.role !== ROLES.SUPPLIER) {
+      throw new AppError('Only approved suppliers can access this resource.', 403);
     }
 
-    const sellerProfile = await SellerProfile.findOne({ userId: req.user._id });
-
-    if (!sellerProfile || sellerProfile.status !== SELLER_STATUS.APPROVED) {
-      throw new AppError('Your seller application is not approved yet.', 403);
-    }
-
-    req.sellerProfile = sellerProfile;
+    await attachApprovedSupplierProfile(req);
     next();
   } catch (error) {
     next(error);
   }
+}
+
+export async function isAdmin(req, res, next) {
+  return authorizeRoles(ROLES.ADMIN)(req, res, next);
+}
+
+export async function isBuyer(req, res, next) {
+  return authorizeRoles(ROLES.BUYER)(req, res, next);
+}
+
+export async function isSupplier(req, res, next) {
+  return requireApprovedSupplier(req, res, next);
 }

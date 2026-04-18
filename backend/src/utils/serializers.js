@@ -14,7 +14,7 @@ export function serializeUser(user) {
   };
 }
 
-export function serializeSellerProfile(profile) {
+export function serializeSupplierProfile(profile) {
   if (!profile) {
     return null;
   }
@@ -23,6 +23,11 @@ export function serializeSellerProfile(profile) {
     id: profile._id,
     userId: profile.userId,
     fullName: profile.fullName,
+    storeName: profile.storeName,
+    businessType: profile.businessType,
+    businessAddress: profile.businessAddress,
+    businessDescription: profile.businessDescription,
+    isStudent: profile.isStudent,
     studentId: profile.studentId,
     collegeName: profile.collegeName,
     department: profile.department,
@@ -33,6 +38,9 @@ export function serializeSellerProfile(profile) {
     status: profile.status,
     rejectionReason: profile.rejectionReason,
     approvedAt: profile.approvedAt,
+    paymentRequestRaised: profile.paymentRequestRaised,
+    paymentRequestRaisedAt: profile.paymentRequestRaisedAt,
+    paymentRequestNote: profile.paymentRequestNote,
     createdAt: profile.createdAt,
     updatedAt: profile.updatedAt,
   };

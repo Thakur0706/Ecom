@@ -2,180 +2,129 @@ import { useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAppContext } from "../context/AppContext";
 
-const studentLinkClass = ({ isActive }) =>
-  `rounded-lg px-3 py-2 text-sm font-semibold transition ${
+const linkClass = ({ isActive }) =>
+  `rounded-full px-4 py-2 text-sm font-semibold transition ${
     isActive
-      ? "bg-blue-50 text-blue-600"
+      ? "bg-blue-50 text-blue-700"
       : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
   }`;
 
 const adminLinkClass = ({ isActive }) =>
-  `rounded-lg px-3 py-2 text-sm font-semibold transition ${
+  `rounded-full px-4 py-2 text-sm font-semibold transition ${
     isActive
-      ? "bg-blue-100 text-blue-600"
+      ? "bg-indigo-100 text-indigo-700"
       : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
   }`;
 
-const adminLinks = [
-  { to: "/admin/dashboard", label: "Overview" },
-  { to: "/admin/sellers", label: "Sellers" },
-  { to: "/admin/users", label: "Users" },
-  { to: "/admin/products", label: "Products" },
-  { to: "/admin/services", label: "Services" },
-  { to: "/admin/orders", label: "Orders" },
-  { to: "/admin/erp", label: "ERP" },
-  { to: "/admin/crm", label: "CRM" },
-  { to: "/admin/commissions", label: "Commissions" },
-  { to: "/admin/analytics", label: "Analytics" },
-  { to: "/admin/payments", label: "Payments" },
-  { to: "/admin/reports", label: "Reports" },
-];
-
-const sellerLinks = [
-  { to: "/seller/dashboard", label: "Dashboard" },
-  { to: "/list-product", label: "My Products" },
-  { to: "/list-service", label: "My Services" },
-  { to: "/bookings", label: "Service Bookings" },
-  { to: "/orders", label: "Orders" },
-  { to: "/seller/erp", label: "ERP" },
-  { to: "/seller/crm", label: "CRM" },
-  { to: "/seller/analytics", label: "Analytics" },
-  { to: "/seller/reports", label: "Reports" },
-];
-
-const buyerLinks = [
-  { to: "/products", label: "Browse Products" },
-  { to: "/services", label: "Browse Services" },
-  { to: "/cart", label: "Cart" },
-  { to: "/dashboard", label: "Dashboard" },
-];
-
 function Navbar() {
   const { currentUser, cart, logout } = useAppContext();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-
   const isAdminRoute = location.pathname.startsWith("/admin");
-  const isAdminUser = currentUser?.role === "admin";
+
+  const buyerLinks = [
+    { to: "/products", label: "Products" },
+    { to: "/services", label: "Services" },
+    {
+      to: "/cart",
+      label: `Cart${cart?.items?.length ? ` (${cart.items.length})` : ""}`,
+    },
+    { to: "/orders", label: "Orders" },
+    { to: "/bookings", label: "Bookings" },
+    { to: "/dashboard", label: "Dashboard" },
+  ];
+
+  const supplierLinks = [
+    { to: "/supplier/dashboard", label: "Dashboard" },
+    { to: "/supplier/products", label: "Products" },
+    { to: "/supplier/ledger", label: "Ledger" },
+    { to: "/supplier/profile", label: "Profile" },
+  ];
+
+  const adminLinks = [
+    { to: "/admin/dashboard", label: "Overview" },
+    { to: "/admin/products/pending", label: "Approvals" },
+    { to: "/admin/products", label: "Products" },
+    { to: "/admin/services", label: "Services" },
+    { to: "/admin/orders", label: "Orders" },
+    { to: "/admin/bookings", label: "Bookings" },
+    { to: "/admin/suppliers", label: "Suppliers" },
+    { to: "/admin/marketing", label: "Marketing" },
+    { to: "/admin/analytics", label: "Analytics" },
+  ];
+
+  const links =
+    currentUser?.role === "admin"
+      ? adminLinks
+      : currentUser?.role === "supplier"
+        ? supplierLinks
+        : buyerLinks;
 
   const handleLogout = async () => {
-    const redirectPath =
-      isAdminUser || isAdminRoute ? "/admin/login" : "/login";
     await logout();
-    setMenuOpen(false);
-    navigate(redirectPath, { replace: true });
+    navigate(isAdminRoute ? "/admin/login" : "/login", { replace: true });
   };
 
-  if (isAdminUser) {
-    return (
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white text-slate-900">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <Link to="/admin/dashboard" className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-500 text-lg font-bold text-white">
-              AC
-            </div>
-            <div>
-              <p className="text-lg font-bold text-slate-900">
-                CampusConnect Admin
-              </p>
-              <p className="text-xs text-slate-500">
-                Platform operations console
-              </p>
-            </div>
-          </Link>
-
-          <nav className="hidden items-center gap-2 xl:flex">
-            {adminLinks.map((link) => (
-              <NavLink key={link.to} to={link.to} className={adminLinkClass}>
-                {link.label}
-              </NavLink>
-            ))}
-          </nav>
-
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
-          >
-            Logout
-          </button>
-        </div>
-      </header>
-    );
-  }
-
-  if (isAdminRoute) {
-    return (
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white text-slate-900">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <Link to="/admin/login" className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-500 text-lg font-bold text-white">
-              AC
-            </div>
-            <div>
-              <p className="text-lg font-bold text-slate-900">
-                CampusConnect Admin
-              </p>
-              <p className="text-xs text-slate-500">Secure platform access</p>
-            </div>
-          </Link>
-
-          <Link
-            to="/login"
-            className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
-          >
-            Student Login
-          </Link>
-        </div>
-      </header>
-    );
-  }
-
-  const navLinks = currentUser?.role === "seller" ? sellerLinks : buyerLinks;
+  const navRenderer =
+    currentUser?.role === "admin" ? adminLinkClass : linkClass;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-white/50 bg-white/90 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-        <Link to="/" className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-500 text-lg font-bold text-white shadow-soft">
+    <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4">
+        <Link
+          to={currentUser?.role === "admin" ? "/admin/dashboard" : "/"}
+          className="flex items-center gap-3"
+        >
+          <div
+            className={`flex h-11 w-11 items-center justify-center rounded-2xl text-lg font-bold text-white ${
+              currentUser?.role === "admin"
+                ? "bg-indigo-600"
+                : currentUser?.role === "supplier"
+                  ? "bg-amber-500"
+                  : "bg-blue-600"
+            }`}
+          >
             CC
           </div>
           <div>
             <p className="text-lg font-bold text-slate-900">CampusConnect</p>
             <p className="text-xs text-slate-500">
-              Student marketplace and skill exchange
+              {currentUser?.role === "admin"
+                ? "Admin operations"
+                : currentUser?.role === "supplier"
+                  ? "Supplier workspace"
+                  : "Marketplace"}
             </p>
           </div>
         </Link>
 
-        <nav className="hidden items-center gap-2 lg:flex">
+        <nav className="hidden items-center gap-2 xl:flex">
           {!currentUser && (
             <>
-              <NavLink to="/" className={studentLinkClass}>
+              <NavLink to="/" className={linkClass}>
                 Home
               </NavLink>
-              <NavLink to="/products" className={studentLinkClass}>
-                Browse Products
+              <NavLink to="/products" className={linkClass}>
+                Products
               </NavLink>
-              <NavLink to="/services" className={studentLinkClass}>
-                Browse Services
+              <NavLink to="/services" className={linkClass}>
+                Services
               </NavLink>
             </>
           )}
           {currentUser &&
-            navLinks.map((link) => (
-              <NavLink key={link.to} to={link.to} className={studentLinkClass}>
+            links.map((link) => (
+              <NavLink key={link.to} to={link.to} className={navRenderer}>
                 {link.label}
-                {link.to === "/cart" ? ` (${cart.length})` : ""}
               </NavLink>
             ))}
         </nav>
 
-        <div className="hidden items-center gap-3 lg:flex">
+        <div className="hidden items-center gap-3 xl:flex">
           {currentUser ? (
             <>
-              <div className="rounded-xl bg-slate-50 px-4 py-2 text-right">
+              <div className="rounded-2xl bg-slate-50 px-4 py-2 text-right">
                 <p className="text-sm font-semibold text-slate-900">
                   {currentUser.name}
                 </p>
@@ -186,7 +135,13 @@ function Navbar() {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500"
+                className={`rounded-full px-4 py-2 text-sm font-semibold text-white ${
+                  currentUser.role === "admin"
+                    ? "bg-indigo-600"
+                    : currentUser.role === "supplier"
+                      ? "bg-amber-500"
+                      : "bg-blue-600"
+                }`}
               >
                 Logout
               </button>
@@ -195,13 +150,13 @@ function Navbar() {
             <>
               <Link
                 to="/login"
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-400 hover:text-blue-600"
+                className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-400 hover:text-blue-600"
               >
                 Login
               </Link>
               <Link
                 to="/register"
-                className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500"
+                className="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
               >
                 Register
               </Link>
@@ -211,95 +166,74 @@ function Navbar() {
 
         <button
           type="button"
-          onClick={() => setMenuOpen((previous) => !previous)}
-          className="inline-flex rounded-lg border border-slate-200 p-2 text-slate-700 lg:hidden"
-          aria-label="Toggle menu"
+          onClick={() => setOpen((previous) => !previous)}
+          className="inline-flex rounded-full border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 xl:hidden"
         >
-          <svg
-            viewBox="0 0 24 24"
-            className="h-6 w-6 fill-none stroke-current stroke-[1.8]"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M4 7h16M4 12h16M4 17h16"
-            />
-          </svg>
+          Menu
         </button>
       </div>
 
-      {menuOpen && (
-        <div className="border-t border-slate-100 bg-white px-6 py-4 lg:hidden">
+      {open && (
+        <div className="border-t border-slate-200 bg-white px-6 py-4 xl:hidden">
           <div className="flex flex-col gap-2">
-            {currentUser ? (
-              navLinks.map((link) => (
-                <NavLink
-                  key={link.to}
-                  to={link.to}
-                  className={studentLinkClass}
-                  onClick={() => setMenuOpen(false)}
-                >
-                  {link.label}
-                  {link.to === "/cart" ? ` (${cart.length})` : ""}
-                </NavLink>
-              ))
-            ) : (
+            {!currentUser && (
               <>
                 <NavLink
                   to="/"
-                  className={studentLinkClass}
-                  onClick={() => setMenuOpen(false)}
+                  className={linkClass}
+                  onClick={() => setOpen(false)}
                 >
                   Home
                 </NavLink>
                 <NavLink
                   to="/products"
-                  className={studentLinkClass}
-                  onClick={() => setMenuOpen(false)}
+                  className={linkClass}
+                  onClick={() => setOpen(false)}
                 >
-                  Browse Products
+                  Products
                 </NavLink>
                 <NavLink
                   to="/services"
-                  className={studentLinkClass}
-                  onClick={() => setMenuOpen(false)}
+                  className={linkClass}
+                  onClick={() => setOpen(false)}
                 >
-                  Browse Services
+                  Services
                 </NavLink>
               </>
             )}
+            {currentUser &&
+              links.map((link) => (
+                <NavLink
+                  key={link.to}
+                  to={link.to}
+                  className={navRenderer}
+                  onClick={() => setOpen(false)}
+                >
+                  {link.label}
+                </NavLink>
+              ))}
 
             {currentUser ? (
-              <>
-                <div className="rounded-xl bg-slate-50 px-4 py-3">
-                  <p className="text-sm font-semibold text-slate-900">
-                    {currentUser.name}
-                  </p>
-                  <p className="text-xs capitalize text-slate-500">
-                    {currentUser.role}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500"
-                >
-                  Logout
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="mt-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+              >
+                Logout
+              </button>
             ) : (
-              <div className="grid grid-cols-2 gap-3 pt-2">
+              <div className="mt-2 flex gap-3">
                 <Link
                   to="/login"
-                  className="rounded-lg border border-slate-200 px-4 py-2 text-center text-sm font-semibold text-slate-700"
-                  onClick={() => setMenuOpen(false)}
+                  className="flex-1 rounded-full border border-slate-200 px-4 py-2 text-center text-sm font-semibold text-slate-700"
+                  onClick={() => setOpen(false)}
                 >
                   Login
                 </Link>
                 <Link
                   to="/register"
-                  className="rounded-lg bg-blue-500 px-4 py-2 text-center text-sm font-semibold text-white"
-                  onClick={() => setMenuOpen(false)}
+                  className="flex-1 rounded-full bg-blue-600 px-4 py-2 text-center text-sm font-semibold text-white"
+                  onClick={() => setOpen(false)}
                 >
                   Register
                 </Link>

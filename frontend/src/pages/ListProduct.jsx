@@ -26,7 +26,7 @@ function ListProduct() {
   const productsQuery = useQuery({
     queryKey: ['products', 'mine'],
     queryFn: () => api.products.mine({ limit: 100 }),
-    enabled: Boolean(currentUser?.role === 'seller'),
+    enabled: Boolean(currentUser?.role === 'supplier'),
   });
 
   const createMutation = useMutation({

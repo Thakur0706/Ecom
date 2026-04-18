@@ -1,13 +1,12 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, clearTokens, getAccessToken, setTokens, subscribeToTokenChanges } from '../lib/api';
-import { imageWithFallback } from '../lib/formatters';
 
 const AppContext = createContext(null);
 
 function buildCurrentUser(meResponse) {
   const user = meResponse?.data?.user;
-  const sellerProfile = meResponse?.data?.sellerProfile || null;
+  const supplierProfile = meResponse?.data?.supplierProfile || null;
 
   if (!user) {
     return null;
@@ -15,33 +14,23 @@ function buildCurrentUser(meResponse) {
 
   return {
     ...user,
-    id: user.id,
-    sellerProfile,
-    sellerStatus: sellerProfile?.status || 'not-applied',
+    id: user._id || user.id,
+    supplierProfile,
+    supplierStatus: supplierProfile?.status || 'not-applied',
   };
-}
-
-function buildCartItems(cartResponse) {
-  const items = cartResponse?.data?.cart?.items || [];
-
-  return items.map((item) => ({
-    id: item.productId,
-    title: item.title,
-    price: item.price,
-    image: imageWithFallback(item.imageUrl),
-    category: item.category,
-    seller: item.seller?.name || 'Campus Seller',
-    quantity: item.quantity,
-  }));
 }
 
 export function AppProvider({ children }) {
   const queryClient = useQueryClient();
   const [accessToken, setAccessToken] = useState(() => getAccessToken());
 
-  useEffect(() => subscribeToTokenChanges(({ accessToken: nextAccessToken }) => {
-    setAccessToken(nextAccessToken);
-  }), []);
+  useEffect(
+    () =>
+      subscribeToTokenChanges(({ accessToken: nextAccessToken }) => {
+        setAccessToken(nextAccessToken);
+      }),
+    [],
+  );
 
   const meQuery = useQuery({
     queryKey: ['auth', 'me'],
@@ -53,14 +42,7 @@ export function AppProvider({ children }) {
   useEffect(() => {
     if (meQuery.isError) {
       clearTokens();
-      queryClient.setQueryData(['auth', 'me'], {
-        data: {
-          user: null,
-          sellerProfile: null,
-        },
-      });
-      queryClient.removeQueries({ queryKey: ['auth', 'me'] });
-      queryClient.removeQueries({ queryKey: ['cart'] });
+      queryClient.clear();
     }
   }, [meQuery.isError, queryClient]);
 
@@ -73,23 +55,27 @@ export function AppProvider({ children }) {
   });
 
   const authMutation = useMutation({
-    mutationFn: async ({ mode, payload }) => {
-      if (mode === 'register') {
-        return api.auth.register(payload);
-      }
-
-      if (mode === 'admin') {
-        return api.auth.adminLogin(payload);
-      }
-
-      return api.auth.login(payload);
-    },
+    mutationFn: (payload) => api.auth.login(payload),
     onSuccess: (response) => {
       setTokens(response.data.tokens);
       queryClient.setQueryData(['auth', 'me'], {
         data: {
           user: response.data.user,
-          sellerProfile: response.data.sellerProfile,
+          supplierProfile: response.data.supplierProfile,
+        },
+      });
+      queryClient.invalidateQueries({ queryKey: ['cart'] });
+    },
+  });
+
+  const registerMutation = useMutation({
+    mutationFn: api.auth.register,
+    onSuccess: (response) => {
+      setTokens(response.data.tokens);
+      queryClient.setQueryData(['auth', 'me'], {
+        data: {
+          user: response.data.user,
+          supplierProfile: response.data.supplierProfile,
         },
       });
       queryClient.invalidateQueries({ queryKey: ['cart'] });
@@ -97,17 +83,25 @@ export function AppProvider({ children }) {
   });
 
   const cartMutation = useMutation({
-    mutationFn: ({ action, payload }) => {
+    mutationFn: ({ action, itemId, payload }) => {
       if (action === 'add') {
         return api.cart.add(payload);
       }
 
       if (action === 'update') {
-        return api.cart.update(payload);
+        return api.cart.update(itemId, payload);
       }
 
       if (action === 'remove') {
-        return api.cart.remove(payload);
+        return api.cart.remove(itemId);
+      }
+
+      if (action === 'applyCoupon') {
+        return api.cart.applyCoupon(payload);
+      }
+
+      if (action === 'removeCoupon') {
+        return api.cart.removeCoupon();
       }
 
       return api.cart.clear();
@@ -117,94 +111,54 @@ export function AppProvider({ children }) {
     },
   });
 
-  const login = (payload) => authMutation.mutateAsync({ mode: 'login', payload });
-  const register = (payload) => authMutation.mutateAsync({ mode: 'register', payload });
-  const loginAdmin = (payload) => authMutation.mutateAsync({ mode: 'admin', payload });
+  const login = (payload) => authMutation.mutateAsync(payload);
+  const loginAdmin = (payload) => authMutation.mutateAsync(payload);
+  const register = (payload) => registerMutation.mutateAsync(payload);
 
   const logout = async () => {
-    queryClient.setQueryData(['auth', 'me'], {
-      data: {
-        user: null,
-        sellerProfile: null,
-      },
-    });
-    queryClient.setQueryData(['cart'], {
-      data: {
-        cart: {
-          items: [],
-        },
-      },
-    });
+    // Clear tokens and state immediately to ensure UI responsiveness.
+    const hasToken = Boolean(getAccessToken());
+    clearTokens();
+    queryClient.clear();
 
-    try {
-      if (getAccessToken()) {
+    if (hasToken) {
+      try {
         await api.auth.logout();
+      } catch {
+        // Ignore logout failure.
       }
-    } catch {
-      // Local sign-out still completes even if the session has already expired on the server.
-    } finally {
-      clearTokens();
-      queryClient.clear();
     }
   };
-
-  const addToCart = (product, quantity = 1) =>
-    cartMutation.mutateAsync({
-      action: 'add',
-      payload: {
-        productId: product.id,
-        quantity,
-      },
-    });
-
-  const removeFromCart = (productId) =>
-    cartMutation.mutateAsync({
-      action: 'remove',
-      payload: productId,
-    });
-
-  const updateQuantity = (productId, quantity) => {
-    if (quantity <= 0) {
-      return removeFromCart(productId);
-    }
-
-    return cartMutation.mutateAsync({
-      action: 'update',
-      payload: { productId, quantity },
-    });
-  };
-
-  const clearCart = () =>
-    cartMutation.mutateAsync({
-      action: 'clear',
-    });
 
   const value = useMemo(
     () => ({
       currentUser,
-      sellerProfile: currentUser?.sellerProfile || null,
-      cart: buildCartItems(cartQuery.data),
+      cart: cartQuery.data?.data?.cart || null,
       login,
-      register,
       loginAdmin,
+      register,
       logout,
-      addToCart,
-      removeFromCart,
-      updateQuantity,
-      clearCart,
       authLoading: meQuery.isLoading,
+      authPending: authMutation.isPending || registerMutation.isPending,
       cartLoading: cartQuery.isLoading,
-      authPending: authMutation.isPending,
       cartPending: cartMutation.isPending,
-      isAuthenticated: Boolean(currentUser),
+      addToCart: (payload) => cartMutation.mutateAsync({ action: 'add', payload }),
+      updateCartItem: (itemId, payload) =>
+        cartMutation.mutateAsync({ action: 'update', itemId, payload }),
+      removeCartItem: (itemId) => cartMutation.mutateAsync({ action: 'remove', itemId }),
+      clearCart: () => cartMutation.mutateAsync({ action: 'clear' }),
+      applyCartCoupon: (payload) =>
+        cartMutation.mutateAsync({ action: 'applyCoupon', payload }),
+      removeCartCoupon: () => cartMutation.mutateAsync({ action: 'removeCoupon' }),
     }),
     [
-      currentUser,
-      cartQuery.data,
-      cartQuery.isLoading,
-      meQuery.isLoading,
       authMutation.isPending,
       cartMutation.isPending,
+      cartQuery.data,
+      cartQuery.isLoading,
+      currentUser,
+      meQuery.isLoading,
+      registerMutation.isPending,
     ],
   );
 

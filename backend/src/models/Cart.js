@@ -19,7 +19,7 @@ const cartItemSchema = new mongoose.Schema(
     },
   },
   {
-    _id: false,
+    _id: true,
   },
 );
 
@@ -34,6 +34,12 @@ const cartSchema = new mongoose.Schema(
     items: {
       type: [cartItemSchema],
       default: [],
+    },
+    couponCode: {
+      type: String,
+      default: '',
+      trim: true,
+      uppercase: true,
     },
   },
   {

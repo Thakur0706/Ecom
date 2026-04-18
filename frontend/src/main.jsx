@@ -5,8 +5,6 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import './index.css';
 import { AppProvider } from './context/AppContext';
-import { OrderProvider } from './context/OrderContext';
-import { ERPCRMProvider } from './context/ERPCRMContext';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,11 +20,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AppProvider>
-          <OrderProvider>
-            <ERPCRMProvider>
-              <App />
-            </ERPCRMProvider>
-          </OrderProvider>
+          <App />
         </AppProvider>
       </BrowserRouter>
     </QueryClientProvider>

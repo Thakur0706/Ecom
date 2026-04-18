@@ -101,7 +101,7 @@ function OrderDetail() {
     );
   }
 
-  const canManageAsSeller = currentUser.role === 'seller';
+  const canManageAsSeller = currentUser.role === 'supplier';
   const totalPaid = order.totalAmount + order.platformFee;
 
   const handleCancelOrder = () => {

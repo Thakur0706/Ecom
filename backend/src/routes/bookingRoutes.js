@@ -1,78 +1,36 @@
 import { Router } from 'express';
 import {
-  completeBookingUpiPayment,
+  cancelBooking,
   createBooking,
-  createBookingPaymentSession,
+  getBookingById,
   getBookingMessages,
-  getMyBookings,
-  getMyServiceBookings,
+  getBookings,
   sendBookingMessage,
-  updateBookingStatus,
-  verifyBookingPayment,
+  createCheckoutSession,
+  verifyPayment,
+  payUpi,
 } from '../controllers/bookingController.js';
-import { authenticate, authorizeRoles, requireApprovedSeller } from '../middleware/auth.js';
+import { authenticate, authorizeRoles } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { asyncHandler } from '../utils/http.js';
 import {
   bookingCreateSchema,
   bookingMessageSchema,
-  bookingPaymentSessionSchema,
   bookingPaymentVerificationSchema,
-  bookingStatusSchema,
-  bookingUpiPaymentSchema,
 } from '../schemas/index.js';
+import { asyncHandler } from '../utils/http.js';
 
 const router = Router();
 
-router.post(
-  '/',
-  authenticate,
-  authorizeRoles('buyer', 'seller'),
-  validate(bookingCreateSchema),
-  asyncHandler(createBooking),
-);
-router.get('/my-bookings', authenticate, authorizeRoles('buyer', 'seller'), asyncHandler(getMyBookings));
-router.get(
-  '/my-service-bookings',
-  authenticate,
-  requireApprovedSeller,
-  asyncHandler(getMyServiceBookings),
-);
-router.post(
-  '/:id/payment-session',
-  authenticate,
-  authorizeRoles('buyer', 'seller'),
-  validate(bookingPaymentSessionSchema),
-  asyncHandler(createBookingPaymentSession),
-);
-router.post(
-  '/:id/verify-payment',
-  authenticate,
-  authorizeRoles('buyer', 'seller'),
-  validate(bookingPaymentVerificationSchema),
-  asyncHandler(verifyBookingPayment),
-);
-router.post(
-  '/:id/pay-upi',
-  authenticate,
-  authorizeRoles('buyer', 'seller'),
-  validate(bookingUpiPaymentSchema),
-  asyncHandler(completeBookingUpiPayment),
-);
-router.get('/:id/messages', authenticate, authorizeRoles('buyer', 'seller'), asyncHandler(getBookingMessages));
-router.post(
-  '/:id/messages',
-  authenticate,
-  authorizeRoles('buyer', 'seller'),
-  validate(bookingMessageSchema),
-  asyncHandler(sendBookingMessage),
-);
-router.patch(
-  '/:id/status',
-  authenticate,
-  requireApprovedSeller,
-  validate(bookingStatusSchema),
-  asyncHandler(updateBookingStatus),
-);
+router.use(authenticate, authorizeRoles('buyer', 'supplier', 'admin'));
+
+router.post('/', authorizeRoles('buyer', 'supplier'), validate(bookingCreateSchema), asyncHandler(createBooking));
+router.get('/', authorizeRoles('buyer', 'supplier'), asyncHandler(getBookings));
+router.post('/:id/checkout-session', authorizeRoles('buyer', 'supplier'), asyncHandler(createCheckoutSession));
+router.post('/verify-payment', authorizeRoles('buyer', 'supplier'), validate(bookingPaymentVerificationSchema), asyncHandler(verifyPayment));
+router.post('/:id/upi-payment', authorizeRoles('buyer', 'supplier'), asyncHandler(payUpi));
+router.get('/:id/messages', asyncHandler(getBookingMessages));
+router.post('/:id/messages', validate(bookingMessageSchema), asyncHandler(sendBookingMessage));
+router.get('/:id', asyncHandler(getBookingById));
+router.post('/:id/cancel', authorizeRoles('buyer', 'supplier'), asyncHandler(cancelBooking));
 
 export default router;

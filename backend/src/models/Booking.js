@@ -1,26 +1,45 @@
-import mongoose from "mongoose";
-import { BOOKING_STATUS, PAYMENT_STATUS } from "../constants/enums.js";
+import mongoose from 'mongoose';
+import { BOOKING_STATUS, PAYMENT_STATUS } from '../constants/enums.js';
+
+const bookingTimelineSchema = new mongoose.Schema(
+  {
+    status: {
+      type: String,
+      enum: BOOKING_STATUS,
+      required: true,
+    },
+    note: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    timestamp: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  {
+    _id: false,
+  },
+);
 
 const bookingSchema = new mongoose.Schema(
   {
     buyerId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      ref: 'User',
       required: true,
-    },
-    sellerId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
+      index: true,
     },
     serviceId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Service",
+      ref: 'Service',
       required: true,
     },
     serviceTitle: {
       type: String,
-      default: "",
+      default: '',
+      trim: true,
     },
     scheduledDate: {
       type: Date,
@@ -36,55 +55,39 @@ const bookingSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
-    platformFee: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
-    finalAmount: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
-    originalAmount: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
-    discountAmount: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
     couponCode: {
       type: String,
-      default: "",
+      default: '',
       trim: true,
-      uppercase: true,
+    },
+    couponDiscount: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
     paymentStatus: {
       type: String,
       enum: PAYMENT_STATUS,
-      default: "pending",
+      default: 'pending',
     },
     paymentProvider: {
       type: String,
-      default: "",
+      default: '',
       trim: true,
     },
     paymentMethod: {
       type: String,
-      default: "",
+      default: '',
       trim: true,
     },
     paymentReference: {
       type: String,
-      default: "",
+      default: '',
       trim: true,
     },
     gatewayOrderId: {
       type: String,
-      default: "",
+      default: '',
       trim: true,
     },
     transactionId: {
@@ -95,9 +98,22 @@ const bookingSchema = new mongoose.Schema(
     bookingStatus: {
       type: String,
       enum: BOOKING_STATUS,
-      default: "pending",
+      default: 'pending',
+      index: true,
     },
-    sellerConfirmedAt: {
+    statusTimeline: {
+      type: [bookingTimelineSchema],
+      default: () => [{ status: 'pending', timestamp: new Date() }],
+    },
+    confirmedAt: {
+      type: Date,
+      default: null,
+    },
+    completedAt: {
+      type: Date,
+      default: null,
+    },
+    cancelledAt: {
       type: Date,
       default: null,
     },
@@ -111,4 +127,6 @@ const bookingSchema = new mongoose.Schema(
   },
 );
 
-export const Booking = mongoose.model("Booking", bookingSchema);
+bookingSchema.index({ buyerId: 1, createdAt: -1 });
+
+export const Booking = mongoose.model('Booking', bookingSchema);

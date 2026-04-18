@@ -1,333 +1,274 @@
-import { Booking } from "../models/Booking.js";
-import { BookingMessage } from "../models/BookingMessage.js";
-import { Sales } from "../models/Sales.js";
-import { Service } from "../models/Service.js";
-import { LISTING_STATUS, ROLES } from "../constants/enums.js";
-import { env } from "../config/env.js";
+import { Booking } from '../models/Booking.js';
+import { BookingMessage } from '../models/BookingMessage.js';
+import AdminRevenue from '../models/AdminRevenue.js';
+import { Service } from '../models/Service.js';
+import { AppError, sendResponse } from '../utils/http.js';
+import { buildPagination, getPagination } from '../utils/pagination.js';
 import {
   createRazorpayOrder,
-  fetchRazorpayPayment,
   verifyRazorpaySignature,
-} from "../services/razorpayService.js";
-import { resolveServiceCoupon } from "../utils/couponHelpers.js";
-import { AppError, sendResponse } from "../utils/http.js";
-import { buildPagination, getPagination } from "../utils/pagination.js";
+  fetchRazorpayPayment,
+} from '../services/razorpayService.js';
+import { env } from '../config/env.js';
+import { validateCoupon } from '../utils/couponHelpers.js';
+import { updateCRMOnBooking } from '../utils/crmHelpers.js';
 
-const validSellerTransitions = {
-  pending: ["confirmed", "cancelled"],
-  confirmed: ["completed", "cancelled"],
+const validAdminTransitions = {
+  pending: ['confirmed', 'cancelled'],
+  confirmed: ['completed', 'cancelled'],
   completed: [],
   cancelled: [],
 };
 
-function isValidUpiId(value = "") {
-  return /^[a-zA-Z0-9._-]{2,}@[a-zA-Z]{2,}$/.test(value.trim());
-}
-
 async function populateBooking(bookingId) {
   return Booking.findById(bookingId)
-    .populate("buyerId", "name email profilePictureUrl")
-    .populate("sellerId", "name email profilePictureUrl")
-    .populate("serviceId");
+    .populate('buyerId', 'name email profilePictureUrl')
+    .populate('serviceId');
 }
 
-function ensureBuyerOwnsBooking(booking, buyerId) {
-  if (booking.buyerId._id.toString() !== buyerId.toString()) {
-    throw new AppError("You can only manage your own bookings.", 403);
+function serializeBooking(booking, { includeBuyer = true } = {}) {
+  if (!booking) {
+    return null;
+  }
+
+  return {
+    id: booking._id,
+    buyer: includeBuyer && booking.buyerId
+      ? {
+          id: booking.buyerId._id || booking.buyerId,
+          name: booking.buyerId.name || '',
+          email: booking.buyerId.email || '',
+        }
+      : null,
+    service: booking.serviceId
+      ? {
+          id: booking.serviceId._id || booking.serviceId,
+          title: booking.serviceId.title || booking.serviceTitle,
+          category: booking.serviceId.category || '',
+          imageUrl: booking.serviceId.imageUrl || '',
+        }
+      : {
+          id: booking.serviceId,
+          title: booking.serviceTitle,
+        },
+    serviceTitle: booking.serviceTitle,
+    scheduledDate: booking.scheduledDate,
+    duration: booking.duration,
+    totalAmount: booking.totalAmount,
+    couponCode: booking.couponCode,
+    couponDiscount: booking.couponDiscount,
+    paymentStatus: booking.paymentStatus,
+    paymentProvider: booking.paymentProvider,
+    paymentMethod: booking.paymentMethod,
+    paymentReference: booking.paymentReference,
+    gatewayOrderId: booking.gatewayOrderId,
+    transactionId: booking.transactionId,
+    bookingStatus: booking.bookingStatus,
+    statusTimeline: booking.statusTimeline,
+    confirmedAt: booking.confirmedAt,
+    completedAt: booking.completedAt,
+    cancelledAt: booking.cancelledAt,
+    paidAt: booking.paidAt,
+    createdAt: booking.createdAt,
+    updatedAt: booking.updatedAt,
+  };
+}
+
+function ensureBookingParticipant(booking, user) {
+  if (user.role === 'admin') {
+    return;
+  }
+
+  if (booking.buyerId._id.toString() !== user._id.toString()) {
+    throw new AppError('You are not allowed to access this booking.', 403);
   }
 }
 
-function ensureSellerOwnsBooking(booking, sellerId) {
-  if (booking.sellerId._id.toString() !== sellerId.toString()) {
-    throw new AppError(
-      "You can only manage bookings for your own services.",
-      403,
-    );
+function ensureChatOpen(booking) {
+  if (booking.paymentStatus !== 'paid') {
+    throw new AppError('Chat is available only after the booking has been successfully paid.', 403);
   }
 }
 
-function ensureBookingParticipant(booking, userId) {
-  const isParticipant =
-    booking.buyerId._id.toString() === userId.toString() ||
-    booking.sellerId._id.toString() === userId.toString();
-
-  if (!isParticipant) {
-    throw new AppError("You are not allowed to access this booking.", 403);
+async function attachAdminServiceOwnerReference(booking, service) {
+  if (!service?.ownedByAdmin) {
+    return;
   }
+
+  if (!service.adminId) {
+    throw new AppError('Admin-owned service is missing its admin owner reference.', 400);
+  }
+
+  await Booking.updateOne(
+    { _id: booking._id },
+    {
+      $set: {
+        supplierId: service.adminId,
+      },
+    },
+    { strict: false },
+  );
 }
 
-function normalizePaymentMethod(rawMethod = "", fallbackMethod = "card") {
-  const normalized = rawMethod.toLowerCase();
+async function handlePaidBookingRevenue(booking, serviceDocument = null) {
+  const service = serviceDocument || (await Service.findById(booking.serviceId));
 
-  if (normalized.includes("upi")) {
-    return "upi";
+  if (!service) {
+    return;
   }
 
-  if (normalized.includes("card")) {
-    return "card";
+  if (service.ownedByAdmin === true) {
+    if (!service.adminId) {
+      throw new AppError('Admin-owned service is missing its admin owner reference.', 400);
+    }
+
+    await AdminRevenue.create({
+      adminId: service.adminId,
+      sourceType: 'service_booking',
+      sourceId: booking._id,
+      amount: booking.totalAmount,
+      description: `Service booking: ${service.title}`,
+      status: 'earned',
+      earnedAt: new Date(),
+    });
+
+    return;
   }
 
-  return fallbackMethod;
+  // Supplier service: existing commission logic stays unchanged.
 }
 
 export async function createBooking(req, res) {
-  const service = await Service.findOne({
-    _id: req.body.serviceId,
-    status: LISTING_STATUS.APPROVED,
-    isActive: true,
-  }).populate("sellerId", "name email profilePictureUrl");
+  const service = await Service.findById(req.body.serviceId);
 
-  if (!service) {
-    throw new AppError("Service is not available.", 404);
+  if (!service || service.status !== 'active') {
+    throw new AppError('Service is not available.', 404);
   }
 
-  if (service.sellerId._id.toString() === req.user._id.toString()) {
-    throw new AppError("You cannot book your own service.", 400);
+  if (service.ownedByAdmin === true && !service.adminId) {
+    throw new AppError('Admin-owned service is missing its admin owner reference.', 400);
   }
 
-  const couponResult = await resolveServiceCoupon({
-    couponCode: req.body.couponCode,
-    service,
-    userId: req.user._id,
-  }).catch((error) => {
-    if (!req.body.couponCode) {
-      return {
-        couponCode: "",
-        discountAmount: 0,
-      };
-    }
-
-    throw error;
+  const existingActive = await Booking.findOne({
+    buyerId: req.user._id,
+    serviceId: service._id,
+    bookingStatus: { $in: ['pending', 'confirmed'] },
+    paymentStatus: { $ne: 'paid' },
   });
+
+  if (existingActive) {
+    throw new AppError('You already have an active request for this service. Please wait for admin approval or complete your payment.', 400);
+  }
+
+  let couponDiscount = 0;
+  let normalizedCouponCode = '';
+
+  if (req.body.couponCode) {
+    const mockItem = {
+      productId: service._id,
+      title: service.title,
+      category: service.category,
+      quantity: 1,
+      unitPrice: service.price,
+      subtotal: service.price,
+    };
+    
+    const couponResult = await validateCoupon({
+      code: req.body.couponCode,
+      orderTotal: service.price,
+      items: [mockItem],
+      userId: req.user._id,
+    });
+    couponDiscount = couponResult.discountAmount;
+    normalizedCouponCode = couponResult.coupon.code;
+  }
+
+  const totalAmount = Number((service.price - couponDiscount).toFixed(2));
 
   const booking = await Booking.create({
     buyerId: req.user._id,
-    sellerId: service.sellerId._id,
     serviceId: service._id,
     serviceTitle: service.title,
     scheduledDate: new Date(req.body.scheduledDate),
     duration: req.body.duration,
-    originalAmount: service.price,
-    discountAmount: couponResult.discountAmount || 0,
-    couponCode: couponResult.couponCode || "",
-    totalAmount: Number(
-      (service.price - (couponResult.discountAmount || 0)).toFixed(2),
-    ),
-    paymentStatus: "pending",
-    transactionId: `BKG_${Date.now()}`,
-    bookingStatus: "pending",
+    totalAmount: totalAmount,
+    couponCode: normalizedCouponCode,
+    couponDiscount: couponDiscount,
+    paymentStatus: 'pending',
+    paymentProvider: '',
+    paymentMethod: '',
+    paymentReference: '',
+    transactionId: `BKG_${Date.now()}_${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+    bookingStatus: 'pending',
+    statusTimeline: [{ status: 'pending', timestamp: new Date() }],
   });
 
-  const populatedBooking = await populateBooking(booking._id);
+  await attachAdminServiceOwnerReference(booking, service);
 
-  return sendResponse(
-    res,
-    201,
-    true,
-    "Booking request created successfully. Awaiting seller confirmation.",
-    {
-      booking: populatedBooking,
-    },
-  );
-}
-
-export async function getMyBookings(req, res) {
-  const { page, limit, skip } = getPagination(req.query);
-  const filter = { buyerId: req.user._id };
-
-  if (req.query.status) {
-    filter.bookingStatus = req.query.status;
-  }
-
-  const [bookings, total] = await Promise.all([
-    Booking.find(filter)
-      .populate("sellerId", "name email profilePictureUrl")
-      .populate("serviceId")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit),
-    Booking.countDocuments(filter),
-  ]);
-
-  return sendResponse(res, 200, true, "Bookings fetched successfully.", {
-    bookings,
-    pagination: buildPagination(page, limit, total),
+  return sendResponse(res, 201, true, 'Booking requested successfully.', {
+    booking: serializeBooking(await populateBooking(booking._id)),
   });
 }
 
-export async function getMyServiceBookings(req, res) {
-  if (req.user.role !== ROLES.SELLER) {
-    throw new AppError("Only sellers can access service bookings.", 403);
-  }
-
-  const { page, limit, skip } = getPagination(req.query);
-  const filter = { sellerId: req.user._id };
-
-  if (req.query.status) {
-    filter.bookingStatus = req.query.status;
-  }
-
-  const [bookings, total] = await Promise.all([
-    Booking.find(filter)
-      .populate("buyerId", "name email profilePictureUrl")
-      .populate("serviceId")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit),
-    Booking.countDocuments(filter),
-  ]);
-
-  return sendResponse(
-    res,
-    200,
-    true,
-    "Service bookings fetched successfully.",
-    {
-      bookings,
-      pagination: buildPagination(page, limit, total),
-    },
-  );
-}
-
-export async function updateBookingStatus(req, res) {
-  const booking = await populateBooking(req.params.id);
+export async function createCheckoutSession(req, res) {
+  const booking = await Booking.findById(req.params.id);
 
   if (!booking) {
-    throw new AppError("Booking not found.", 404);
+    throw new AppError('Booking not found.', 404);
   }
 
-  ensureSellerOwnsBooking(booking, req.user._id);
-
-  const allowedNextStatuses =
-    validSellerTransitions[booking.bookingStatus] || [];
-
-  if (!allowedNextStatuses.includes(req.body.bookingStatus)) {
-    throw new AppError(
-      `You cannot change a booking from ${booking.bookingStatus} to ${req.body.bookingStatus}.`,
-      400,
-    );
+  if (booking.buyerId.toString() !== req.user._id.toString()) {
+    throw new AppError('You are not allowed to pay for this booking.', 403);
   }
 
-  if (
-    req.body.bookingStatus === "completed" &&
-    booking.paymentStatus !== "paid"
-  ) {
-    throw new AppError(
-      "The buyer must complete payment before the booking can be marked completed.",
-      400,
-    );
+  if (booking.bookingStatus !== 'confirmed') {
+    throw new AppError('This booking has not been approved by the admin yet.', 400);
   }
 
-  booking.bookingStatus = req.body.bookingStatus;
-
-  if (req.body.bookingStatus === "confirmed") {
-    booking.sellerConfirmedAt = new Date();
+  if (booking.paymentStatus === 'paid') {
+    throw new AppError('This booking is already paid.', 400);
   }
 
-  await booking.save();
+  const amountInPaise = Math.round(booking.totalAmount * 100);
+  const receipt = `bkg_${booking._id.toString().slice(-6)}_${Date.now()}`;
 
-  // Create sales record when booking is completed
-  if (req.body.bookingStatus === "completed") {
-    await Sales.create({
-      sellerId: booking.sellerId,
-      bookingId: booking._id,
-      type: "service",
-      title: booking.serviceTitle,
-      amount: booking.totalAmount,
-      platformFee: booking.platformFee,
-      sellerEarns: booking.totalAmount,
-      completedAt: new Date(),
-    });
-  }
-
-  return sendResponse(res, 200, true, "Booking status updated successfully.", {
-    booking: await populateBooking(booking._id),
-  });
-}
-
-export async function createBookingPaymentSession(req, res) {
-  const booking = await populateBooking(req.params.id);
-
-  if (!booking) {
-    throw new AppError("Booking not found.", 404);
-  }
-
-  ensureBuyerOwnsBooking(booking, req.user._id);
-
-  if (booking.bookingStatus !== "confirmed") {
-    throw new AppError(
-      "This booking must be confirmed by the service provider before payment.",
-      400,
-    );
-  }
-
-  if (booking.paymentStatus === "paid") {
-    return sendResponse(res, 200, true, "Booking is already paid.", {
-      checkout: {
-        bookingId: booking._id,
-        keyId: env.razorpayKeyId,
-        amount: Math.round(booking.totalAmount * 100),
-        currency: "INR",
-        razorpayOrderId: booking.gatewayOrderId,
-        preferredMethod: "card",
-        testMode: env.razorpayKeyId.startsWith("rzp_test_"),
-      },
-    });
-  }
-
-  const receipt = `booking_${booking._id.toString().slice(-6)}_${Date.now()}`;
   const razorpayOrder = await createRazorpayOrder({
-    amount: Math.round(booking.totalAmount * 100),
-    currency: "INR",
+    amount: amountInPaise,
+    currency: 'INR',
     receipt,
     notes: {
+      campusUserId: req.user._id.toString(),
       bookingId: booking._id.toString(),
-      buyerId: req.user._id.toString(),
     },
   });
 
   booking.gatewayOrderId = razorpayOrder.id;
   await booking.save();
 
-  return sendResponse(
-    res,
-    200,
-    true,
-    "Booking payment session created successfully.",
-    {
-      checkout: {
-        bookingId: booking._id,
-        keyId: env.razorpayKeyId,
-        amount: razorpayOrder.amount,
-        currency: razorpayOrder.currency,
-        razorpayOrderId: razorpayOrder.id,
-        preferredMethod: "card",
-        testMode: env.razorpayKeyId.startsWith("rzp_test_"),
-      },
+  return sendResponse(res, 200, true, 'Payment session created successfully.', {
+    checkout: {
+      bookingId: booking._id,
+      keyId: env.razorpayKeyId,
+      amount: razorpayOrder.amount,
+      currency: razorpayOrder.currency,
+      razorpayOrderId: razorpayOrder.id,
     },
-  );
+  });
 }
 
-export async function verifyBookingPayment(req, res) {
-  const booking = await populateBooking(req.params.id);
+export async function verifyPayment(req, res) {
+  const booking = await Booking.findById(req.body.bookingId);
 
   if (!booking) {
-    throw new AppError("Booking not found.", 404);
+    throw new AppError('Booking not found.', 404);
   }
 
-  ensureBuyerOwnsBooking(booking, req.user._id);
-
-  if (booking.paymentStatus === "paid") {
-    return sendResponse(res, 200, true, "Booking payment already verified.", {
-      booking,
-    });
+  if (booking.buyerId.toString() !== req.user._id.toString()) {
+    throw new AppError('You are not allowed to verify this payment.', 403);
   }
 
   if (booking.gatewayOrderId !== req.body.razorpayOrderId) {
-    throw new AppError(
-      "This payment does not match the booking payment session.",
-      400,
-    );
+    throw new AppError('Checkout session does not match this Razorpay order.', 400);
   }
 
   const isSignatureValid = verifyRazorpaySignature({
@@ -337,74 +278,144 @@ export async function verifyBookingPayment(req, res) {
   });
 
   if (!isSignatureValid) {
-    throw new AppError("Payment verification failed for this booking.", 400);
+    throw new AppError('Payment verification failed. Please retry the checkout.', 400);
   }
 
   const payment = await fetchRazorpayPayment(req.body.razorpayPaymentId);
 
   if (payment.order_id !== booking.gatewayOrderId) {
-    throw new AppError("The payment does not belong to this booking.", 400);
+    throw new AppError('Razorpay payment does not belong to this booking checkout.', 400);
   }
 
-  if (!["authorized", "captured"].includes(payment.status)) {
-    throw new AppError("Payment is not in a successful state yet.", 400);
+  if (!['authorized', 'captured'].includes(payment.status)) {
+    throw new AppError('Payment is not in a successful state yet.', 400);
   }
 
-  if (payment.amount !== Math.round(booking.totalAmount * 100)) {
-    throw new AppError(
-      "Payment amount does not match the booking amount.",
-      400,
-    );
+  const service = await Service.findById(booking.serviceId);
+
+  if (service?.ownedByAdmin === true && !service.adminId) {
+    throw new AppError('Admin-owned service is missing its admin owner reference.', 400);
   }
 
-  const paymentMethod = normalizePaymentMethod(payment.method, "card");
-  booking.paymentStatus = "paid";
-  booking.paymentProvider = "razorpay";
-  booking.paymentMethod = paymentMethod;
+  booking.paymentStatus = 'paid';
+  booking.paymentProvider = 'razorpay';
+  booking.paymentMethod = 'card';
   booking.paymentReference = payment.id;
-  booking.transactionId = payment.id;
   booking.paidAt = new Date();
+  
   await booking.save();
+  await handlePaidBookingRevenue(booking, service);
+  await updateCRMOnBooking(booking.buyerId?._id || booking.buyerId, booking.totalAmount);
 
-  return sendResponse(res, 200, true, "Booking paid successfully.", {
-    booking: await populateBooking(booking._id),
+  return sendResponse(res, 200, true, 'Booking payment verified successfully.', {
+    booking: serializeBooking(await populateBooking(booking._id)),
   });
 }
 
-export async function completeBookingUpiPayment(req, res) {
+export async function payUpi(req, res) {
+  const booking = await Booking.findById(req.params.id);
+
+  if (!booking) {
+    throw new AppError('Booking not found.', 404);
+  }
+
+  if (booking.buyerId.toString() !== req.user._id.toString()) {
+    throw new AppError('You are not allowed to pay for this booking.', 403);
+  }
+
+  if (booking.bookingStatus !== 'confirmed') {
+    throw new AppError('This booking has not been approved by the admin yet.', 400);
+  }
+
+  if (booking.paymentStatus === 'paid') {
+    throw new AppError('This booking is already paid.', 400);
+  }
+
+  const service = await Service.findById(booking.serviceId);
+
+  if (service?.ownedByAdmin === true && !service.adminId) {
+    throw new AppError('Admin-owned service is missing its admin owner reference.', 400);
+  }
+
+  booking.paymentStatus = 'paid';
+  booking.paymentProvider = 'manual';
+  booking.paymentMethod = 'upi';
+  booking.paymentReference = `UPI_${Date.now()}_${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+  booking.paidAt = new Date();
+
+  await booking.save();
+  await handlePaidBookingRevenue(booking, service);
+  await updateCRMOnBooking(booking.buyerId?._id || booking.buyerId, booking.totalAmount);
+
+  return sendResponse(res, 200, true, 'UPI Payment completed successfully.', {
+    booking: serializeBooking(await populateBooking(booking._id)),
+  });
+}
+
+export async function getBookings(req, res) {
+  const { page, limit, skip } = getPagination(req.query);
+  const filter = { buyerId: req.user._id };
+
+  if (req.query.status) {
+    filter.bookingStatus = req.query.status;
+  }
+
+  const [bookings, total] = await Promise.all([
+    Booking.find(filter)
+      .populate('buyerId', 'name email')
+      .populate('serviceId')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    Booking.countDocuments(filter),
+  ]);
+
+  return sendResponse(res, 200, true, 'Bookings fetched successfully.', {
+    bookings: bookings.map((booking) => serializeBooking(booking)),
+    pagination: buildPagination(page, limit, total),
+  });
+}
+
+export async function getBookingById(req, res) {
   const booking = await populateBooking(req.params.id);
 
   if (!booking) {
-    throw new AppError("Booking not found.", 404);
+    throw new AppError('Booking not found.', 404);
   }
 
-  ensureBuyerOwnsBooking(booking, req.user._id);
+  ensureBookingParticipant(booking, req.user);
 
-  if (booking.bookingStatus !== "confirmed") {
-    throw new AppError("This booking must be confirmed before payment.", 400);
+  return sendResponse(res, 200, true, 'Booking fetched successfully.', {
+    booking: serializeBooking(booking, { includeBuyer: req.user.role === 'admin' }),
+  });
+}
+
+export async function cancelBooking(req, res) {
+  const booking = await Booking.findById(req.params.id);
+
+  if (!booking) {
+    throw new AppError('Booking not found.', 404);
   }
 
-  if (booking.paymentStatus === "paid") {
-    return sendResponse(res, 200, true, "Booking is already paid.", {
-      booking,
-    });
+  if (booking.buyerId.toString() !== req.user._id.toString()) {
+    throw new AppError('You can only cancel your own bookings.', 403);
   }
 
-  if (!isValidUpiId(req.body.upiId)) {
-    throw new AppError("Enter a valid UPI ID to continue.", 400);
+  if (!['pending', 'confirmed'].includes(booking.bookingStatus)) {
+    throw new AppError('This booking can no longer be cancelled.', 400);
   }
 
-  const paymentReference = `UPI_${Date.now()}`;
-  booking.paymentStatus = "paid";
-  booking.paymentProvider = "manual";
-  booking.paymentMethod = "upi";
-  booking.paymentReference = paymentReference;
-  booking.transactionId = paymentReference;
-  booking.paidAt = new Date();
+  booking.bookingStatus = 'cancelled';
+  booking.cancelledAt = new Date();
+  booking.statusTimeline.push({
+    status: 'cancelled',
+    timestamp: new Date(),
+    note: 'Cancelled by buyer.',
+  });
   await booking.save();
 
-  return sendResponse(res, 200, true, "Booking paid successfully.", {
-    booking: await populateBooking(booking._id),
+  return sendResponse(res, 200, true, 'Booking cancelled successfully.', {
+    booking: serializeBooking(await populateBooking(booking._id)),
   });
 }
 
@@ -412,48 +423,30 @@ export async function getBookingMessages(req, res) {
   const booking = await populateBooking(req.params.id);
 
   if (!booking) {
-    throw new AppError("Booking not found.", 404);
+    throw new AppError('Booking not found.', 404);
   }
 
-  ensureBookingParticipant(booking, req.user._id);
-
-  if (booking.paymentStatus !== "paid") {
-    throw new AppError(
-      "Chat becomes available only after the service payment is completed.",
-      403,
-    );
-  }
+  ensureBookingParticipant(booking, req.user);
+  ensureChatOpen(booking);
 
   const messages = await BookingMessage.find({ bookingId: booking._id })
-    .populate("senderId", "name email profilePictureUrl")
+    .populate('senderId', 'name email role profilePictureUrl')
     .sort({ createdAt: 1 });
 
-  return sendResponse(
-    res,
-    200,
-    true,
-    "Booking messages fetched successfully.",
-    {
-      messages,
-    },
-  );
+  return sendResponse(res, 200, true, 'Booking messages fetched successfully.', {
+    messages,
+  });
 }
 
 export async function sendBookingMessage(req, res) {
   const booking = await populateBooking(req.params.id);
 
   if (!booking) {
-    throw new AppError("Booking not found.", 404);
+    throw new AppError('Booking not found.', 404);
   }
 
-  ensureBookingParticipant(booking, req.user._id);
-
-  if (booking.paymentStatus !== "paid") {
-    throw new AppError(
-      "Chat becomes available only after the service payment is completed.",
-      403,
-    );
-  }
+  ensureBookingParticipant(booking, req.user);
+  ensureChatOpen(booking);
 
   const message = await BookingMessage.create({
     bookingId: booking._id,
@@ -461,12 +454,95 @@ export async function sendBookingMessage(req, res) {
     message: req.body.message,
   });
 
-  const populatedMessage = await BookingMessage.findById(message._id).populate(
-    "senderId",
-    "name email profilePictureUrl",
-  );
+  return sendResponse(res, 201, true, 'Message sent successfully.', {
+    message: await BookingMessage.findById(message._id).populate(
+      'senderId',
+      'name email role profilePictureUrl',
+    ),
+  });
+}
 
-  return sendResponse(res, 201, true, "Message sent successfully.", {
-    message: populatedMessage,
+export async function getAdminBookings(req, res) {
+  const { page, limit, skip } = getPagination(req.query);
+  const filter = {};
+
+  if (req.query.status) {
+    filter.bookingStatus = req.query.status;
+  }
+
+  if (req.query.search) {
+    filter.$or = [
+      { serviceTitle: { $regex: req.query.search, $options: 'i' } },
+      { transactionId: { $regex: req.query.search, $options: 'i' } },
+    ];
+  }
+
+  const [bookings, total] = await Promise.all([
+    Booking.find(filter)
+      .populate('buyerId', 'name email')
+      .populate('serviceId')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    Booking.countDocuments(filter),
+  ]);
+
+  return sendResponse(res, 200, true, 'Admin bookings fetched successfully.', {
+    bookings: bookings.map((booking) => serializeBooking(booking)),
+    pagination: buildPagination(page, limit, total),
+  });
+}
+
+export async function getAdminBookingById(req, res) {
+  const booking = await populateBooking(req.params.id);
+
+  if (!booking) {
+    throw new AppError('Booking not found.', 404);
+  }
+
+  return sendResponse(res, 200, true, 'Admin booking fetched successfully.', {
+    booking: serializeBooking(booking),
+  });
+}
+
+export async function updateAdminBookingStatus(req, res) {
+  const booking = await Booking.findById(req.params.id);
+
+  if (!booking) {
+    throw new AppError('Booking not found.', 404);
+  }
+
+  const allowedStatuses = validAdminTransitions[booking.bookingStatus] || [];
+
+  if (!allowedStatuses.includes(req.body.bookingStatus)) {
+    throw new AppError(
+      `You cannot change a booking from ${booking.bookingStatus} to ${req.body.bookingStatus}.`,
+      400,
+    );
+  }
+
+  booking.bookingStatus = req.body.bookingStatus;
+  booking.statusTimeline.push({
+    status: req.body.bookingStatus,
+    timestamp: new Date(),
+    note: 'Updated by admin.',
+  });
+
+  if (req.body.bookingStatus === 'confirmed') {
+    booking.confirmedAt = new Date();
+  }
+
+  if (req.body.bookingStatus === 'completed') {
+    booking.completedAt = new Date();
+  }
+
+  if (req.body.bookingStatus === 'cancelled') {
+    booking.cancelledAt = new Date();
+  }
+
+  await booking.save();
+
+  return sendResponse(res, 200, true, 'Booking status updated successfully.', {
+    booking: serializeBooking(await populateBooking(booking._id)),
   });
 }

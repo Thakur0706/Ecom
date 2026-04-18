@@ -1,9 +1,8 @@
 import { Router } from 'express';
 import {
-  createReview,
-  getMyReviews,
+  createProductReview,
+  createServiceReview,
   getProductReviews,
-  getSellerReviews,
   getServiceReviews,
 } from '../controllers/reviewController.js';
 import { authenticate, authorizeRoles } from '../middleware/auth.js';
@@ -13,10 +12,25 @@ import { reviewSchema } from '../schemas/index.js';
 
 const router = Router();
 
-router.post('/', authenticate, authorizeRoles('buyer', 'seller'), validate(reviewSchema), asyncHandler(createReview));
-router.get('/me', authenticate, authorizeRoles('buyer', 'seller'), asyncHandler(getMyReviews));
-router.get('/product/:productId', asyncHandler(getProductReviews));
-router.get('/service/:serviceId', asyncHandler(getServiceReviews));
-router.get('/seller/:sellerId', asyncHandler(getSellerReviews));
+// GET /api/reviews/product/:id  and  /api/reviews/service/:id
+router.get('/product/:id', asyncHandler(getProductReviews));
+router.get('/service/:id', asyncHandler(getServiceReviews));
+
+// POST /api/reviews/product/:id  or  /api/reviews/service/:id
+router.post(
+  '/product/:id',
+  authenticate,
+  authorizeRoles('buyer', 'supplier'),
+  validate(reviewSchema),
+  asyncHandler(createProductReview),
+);
+
+router.post(
+  '/service/:id',
+  authenticate,
+  authorizeRoles('buyer', 'supplier'),
+  validate(reviewSchema),
+  asyncHandler(createServiceReview),
+);
 
 export default router;

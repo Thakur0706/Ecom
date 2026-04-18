@@ -25,7 +25,7 @@ function ListService() {
   const servicesQuery = useQuery({
     queryKey: ['services', 'mine'],
     queryFn: () => api.services.mine({ limit: 100 }),
-    enabled: Boolean(currentUser?.role === 'seller'),
+    enabled: Boolean(currentUser?.role === 'supplier'),
   });
 
   const createMutation = useMutation({

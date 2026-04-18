@@ -1,46 +1,28 @@
 import mongoose from 'mongoose';
-import { LISTING_STATUS } from '../constants/enums.js';
-
-const couponSchema = new mongoose.Schema(
-  {
-    code: {
-      type: String,
-      required: true,
-      trim: true,
-      uppercase: true,
-    },
-    type: {
-      type: String,
-      enum: ['percent', 'flat'],
-      required: true,
-    },
-    value: {
-      type: Number,
-      required: true,
-      min: 1,
-    },
-    minOrderAmount: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
-    description: {
-      type: String,
-      default: '',
-      trim: true,
-    },
-  },
-  {
-    _id: false,
-  },
-);
+import { SERVICE_STATUS } from '../constants/enums.js';
 
 const serviceSchema = new mongoose.Schema(
   {
-    sellerId: {
+    supplierId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      default: null,
+      index: true,
+    },
+    ownedByAdmin: {
+      type: Boolean,
+      default: false,
+    },
+    adminId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+      index: true,
+    },
+    revenueType: {
+      type: String,
+      enum: ['admin', 'supplier'],
+      default: 'supplier',
     },
     title: {
       type: String,
@@ -56,6 +38,7 @@ const serviceSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
+      index: true,
     },
     price: {
       type: Number,
@@ -69,17 +52,23 @@ const serviceSchema = new mongoose.Schema(
     },
     availability: {
       type: String,
-      required: true,
+      default: '',
       trim: true,
     },
-    isActive: {
-      type: Boolean,
-      default: true,
+    duration: {
+      type: String,
+      default: '',
+      trim: true,
     },
     status: {
       type: String,
-      enum: Object.values(LISTING_STATUS),
-      default: LISTING_STATUS.PENDING,
+      enum: Object.values(SERVICE_STATUS),
+      default: SERVICE_STATUS.ACTIVE,
+      index: true,
+    },
+    isFeatured: {
+      type: Boolean,
+      default: false,
     },
     averageRating: {
       type: Number,
@@ -87,9 +76,10 @@ const serviceSchema = new mongoose.Schema(
       min: 0,
       max: 5,
     },
-    coupon: {
-      type: couponSchema,
-      default: null,
+    reviewCount: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
   },
   {
@@ -97,4 +87,7 @@ const serviceSchema = new mongoose.Schema(
   },
 );
 
-export const Service = mongoose.model('Service', serviceSchema);
+const Service = mongoose.model('Service', serviceSchema);
+
+export { Service };
+export default Service;

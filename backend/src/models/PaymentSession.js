@@ -7,10 +7,10 @@ const paymentSessionItemSchema = new mongoose.Schema(
       ref: 'Product',
       required: true,
     },
-    sellerId: {
+    supplierId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      default: null,
     },
     title: {
       type: String,
@@ -32,24 +32,35 @@ const paymentSessionItemSchema = new mongoose.Schema(
       required: true,
       min: 1,
     },
-    price: {
+    quotedPrice: {
       type: Number,
       required: true,
       min: 0,
     },
-    originalSubtotal: {
+    sellingPrice: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    discountPercent: {
       type: Number,
       default: 0,
       min: 0,
+      max: 90,
     },
-    discountAmount: {
+    finalUnitPrice: {
       type: Number,
-      default: 0,
+      required: true,
       min: 0,
     },
-    payableSubtotal: {
+    lineTotal: {
       type: Number,
-      default: 0,
+      required: true,
+      min: 0,
+    },
+    supplierPayable: {
+      type: Number,
+      required: true,
       min: 0,
     },
   },

@@ -1,1133 +1,1140 @@
-import mongoose from "mongoose";
-import { connectDatabase } from "./src/config/db.js";
-import { env } from "./src/config/env.js";
-import { Booking } from "./src/models/Booking.js";
-import { Cart } from "./src/models/Cart.js";
-import { Order } from "./src/models/Order.js";
-import { Product } from "./src/models/Product.js";
-import { Review } from "./src/models/Review.js";
-import { SellerProfile } from "./src/models/SellerProfile.js";
-import { SellerCommission } from "./src/models/SellerCommission.js";
-import { Service } from "./src/models/Service.js";
-import { SupportTicket } from "./src/models/SupportTicket.js";
-import { User } from "./src/models/User.js";
-import { Sales } from "./src/models/Sales.js";
-import { SellerPayment } from "./src/models/SellerPayment.js";
-import {
-  refreshProductRating,
-  refreshServiceRating,
-} from "./src/services/ratingService.js";
+import mongoose from 'mongoose';
+import { connectDatabase } from './src/config/db.js';
+import { env } from './src/config/env.js';
+import { Booking } from './src/models/Booking.js';
+import { BookingMessage } from './src/models/BookingMessage.js';
+import { Cart } from './src/models/Cart.js';
+import { Coupon } from './src/models/Coupon.js';
+import { Order } from './src/models/Order.js';
+import { Product } from './src/models/Product.js';
+import { Review } from './src/models/Review.js';
+import { Service } from './src/models/Service.js';
+import { SupplierLedger } from './src/models/SupplierLedger.js';
+import { SupplierProfile } from './src/models/SupplierProfile.js';
+import { SupportTicket } from './src/models/SupportTicket.js';
+import { User } from './src/models/User.js';
+import { refreshProductRating, refreshServiceRating } from './src/services/ratingService.js';
+import { createSupplierPayment as createSupplierPaymentEntry } from './src/utils/ledger.js';
 
-const unsplashImages = {
-  books:
-    "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=900&q=80",
-  electronics:
-    "https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=900&q=80",
-  accessories:
-    "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=900&q=80",
-  lab: "https://images.unsplash.com/photo-1532094349884-543bc11b234d?auto=format&fit=crop&w=900&q=80",
-  tutoring:
-    "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=900&q=80",
-  design:
-    "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=900&q=80",
-  coding:
-    "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80",
-  writing:
-    "https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&w=900&q=80",
+const images = {
+  electrical:
+    'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80',
+  mechanical:
+    'https://images.unsplash.com/photo-1581092580497-e0d23cbdf1dc?auto=format&fit=crop&w=1200&q=80',
+  modules:
+    'https://images.unsplash.com/photo-1553406830-ef2513450d76?auto=format&fit=crop&w=1200&q=80',
+  service:
+    'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1200&q=80',
 };
+
+function date(value) {
+  return new Date(value);
+}
+
+function timeline(entries) {
+  return entries.map((entry) => ({
+    status: entry.status,
+    timestamp: date(entry.timestamp),
+    note: entry.note || '',
+  }));
+}
 
 async function resetDatabase() {
   await Promise.all([
     User.deleteMany({}),
-    SellerProfile.deleteMany({}),
+    SupplierProfile.deleteMany({}),
     Product.deleteMany({}),
     Service.deleteMany({}),
     Cart.deleteMany({}),
+    Coupon.deleteMany({}),
     Order.deleteMany({}),
     Booking.deleteMany({}),
+    BookingMessage.deleteMany({}),
     Review.deleteMany({}),
+    SupplierLedger.deleteMany({}),
     SupportTicket.deleteMany({}),
-    SellerCommission.deleteMany({}),
-    Sales.deleteMany({}),
-    SellerPayment.deleteMany({}),
   ]);
 }
 
 async function createUsers() {
   const admin = await User.create({
-    name: "Campus Admin",
-    email: "admin@campusconnect.com",
-    password: "Admin@123",
-    role: "admin",
+    name: 'Campus Admin',
+    email: 'admin@campusconnect.com',
+    password: 'Admin@123',
+    role: 'admin',
   });
 
   const buyers = await User.create([
     {
-      name: "Rahul Sharma",
-      email: "rahul@campusconnect.com",
-      password: "Buyer@123",
-      profilePictureUrl: "https://i.pravatar.cc/300?img=1",
+      name: 'Buyer One',
+      email: 'buyer1@campusconnect.com',
+      password: 'Buyer@123',
     },
     {
-      name: "Megha Patil",
-      email: "megha@campusconnect.com",
-      password: "Buyer@123",
-      profilePictureUrl: "https://i.pravatar.cc/300?img=5",
+      name: 'Buyer Two',
+      email: 'buyer2@campusconnect.com',
+      password: 'Buyer@123',
     },
     {
-      name: "Pooja Nair",
-      email: "pooja@campusconnect.com",
-      password: "Buyer@123",
-      profilePictureUrl: "https://i.pravatar.cc/300?img=10",
+      name: 'Buyer Three',
+      email: 'buyer3@campusconnect.com',
+      password: 'Buyer@123',
     },
     {
-      name: "Kabir Singh",
-      email: "kabir@campusconnect.com",
-      password: "Buyer@123",
-      profilePictureUrl: "https://i.pravatar.cc/300?img=12",
-    },
-    {
-      name: "Anvi Desai",
-      email: "anvi@campusconnect.com",
-      password: "Buyer@123",
-      profilePictureUrl: "https://i.pravatar.cc/300?img=20",
+      name: 'Buyer Four',
+      email: 'buyer4@campusconnect.com',
+      password: 'Buyer@123',
     },
   ]);
 
-  const sellers = await User.create([
+  const suppliers = await User.create([
     {
-      name: "Priya Mehta",
-      email: "priya@campusconnect.com",
-      password: "Seller@123",
-      role: "seller",
-      profilePictureUrl: "https://i.pravatar.cc/300?img=30",
+      name: 'Supplier One',
+      email: 'supplier1@campusconnect.com',
+      password: 'Supplier@123',
+      role: 'supplier',
     },
     {
-      name: "Dev Malhotra",
-      email: "dev@campusconnect.com",
-      password: "Seller@123",
-      role: "seller",
-      profilePictureUrl: "https://i.pravatar.cc/300?img=33",
+      name: 'Supplier Two',
+      email: 'supplier2@campusconnect.com',
+      password: 'Supplier@123',
+      role: 'supplier',
     },
     {
-      name: "Riya Singh",
-      email: "riya@campusconnect.com",
-      password: "Seller@123",
-      role: "seller",
-      profilePictureUrl: "https://i.pravatar.cc/300?img=45",
+      name: 'Supplier Three',
+      email: 'supplier3@campusconnect.com',
+      password: 'Supplier@123',
+      role: 'supplier',
     },
   ]);
 
-  return { admin, buyers, sellers };
+  return { admin, buyers, suppliers };
 }
 
 async function createCarts(users) {
-  const cartDocs = users.map((user) => ({
-    userId: user._id,
-    items: [],
-  }));
-
-  await Cart.insertMany(cartDocs);
+  await Cart.insertMany(
+    users.map((user) => ({
+      userId: user._id,
+      items: [],
+      couponCode: '',
+    })),
+  );
 }
 
-async function createSellerProfiles(sellers) {
-  return SellerProfile.insertMany([
+async function createSupplierProfiles(suppliers) {
+  return SupplierProfile.insertMany([
     {
-      userId: sellers[0]._id,
-      fullName: "Priya Mehta",
-      studentId: "SPIT2026001",
-      collegeName: "SPIT",
-      department: "Information Technology",
-      contactNumber: "9876543210",
-      upiOrBankDetails: "priya@upi",
-      govIdUrl: "https://drive.google.com/file/d/priya-gov/view",
-      studentIdUrl: "https://drive.google.com/file/d/priya-student/view",
-      status: "approved",
-      approvedAt: new Date("2026-01-10T10:00:00.000Z"),
+      userId: suppliers[0]._id,
+      fullName: 'Supplier One',
+      studentId: 'CCS-2601',
+      collegeName: 'Campus Connect Institute',
+      department: 'Electrical Engineering',
+      contactNumber: '9876543201',
+      upiOrBankDetails: 'supplier1@upi',
+      govIdUrl: 'https://drive.google.com/file/d/supplier1-gov/view',
+      studentIdUrl: 'https://drive.google.com/file/d/supplier1-student/view',
+      status: 'approved',
+      approvedAt: date('2026-01-12T10:00:00.000Z'),
     },
     {
-      userId: sellers[1]._id,
-      fullName: "Dev Malhotra",
-      studentId: "DJ2026015",
-      collegeName: "DJ Sanghvi",
-      department: "Computer Engineering",
-      contactNumber: "9123456780",
-      upiOrBankDetails: "dev@upi",
-      govIdUrl: "https://drive.google.com/file/d/dev-gov/view",
-      studentIdUrl: "https://drive.google.com/file/d/dev-student/view",
-      status: "approved",
-      approvedAt: new Date("2026-01-15T10:00:00.000Z"),
+      userId: suppliers[1]._id,
+      fullName: 'Supplier Two',
+      studentId: 'CCS-2602',
+      collegeName: 'Campus Connect Institute',
+      department: 'Mechanical Engineering',
+      contactNumber: '9876543202',
+      upiOrBankDetails: 'supplier2@upi',
+      govIdUrl: 'https://drive.google.com/file/d/supplier2-gov/view',
+      studentIdUrl: 'https://drive.google.com/file/d/supplier2-student/view',
+      status: 'approved',
+      approvedAt: date('2026-01-15T10:00:00.000Z'),
     },
     {
-      userId: sellers[2]._id,
-      fullName: "Riya Singh",
-      studentId: "VES2026022",
-      collegeName: "VESIT",
-      department: "Computer Science",
-      contactNumber: "9988776655",
-      upiOrBankDetails: "riya@upi",
-      govIdUrl: "https://drive.google.com/file/d/riya-gov/view",
-      studentIdUrl: "https://drive.google.com/file/d/riya-student/view",
-      status: "approved",
-      approvedAt: new Date("2026-01-20T10:00:00.000Z"),
+      userId: suppliers[2]._id,
+      fullName: 'Supplier Three',
+      studentId: 'CCS-2603',
+      collegeName: 'Campus Connect Institute',
+      department: 'Electronics Engineering',
+      contactNumber: '9876543203',
+      upiOrBankDetails: 'supplier3@upi',
+      govIdUrl: 'https://drive.google.com/file/d/supplier3-gov/view',
+      studentIdUrl: 'https://drive.google.com/file/d/supplier3-student/view',
+      status: 'approved',
+      approvedAt: date('2026-01-18T10:00:00.000Z'),
+      paymentRequestRaised: true,
+      paymentRequestRaisedAt: date('2026-04-11T08:00:00.000Z'),
+      paymentRequestNote: 'Please release the pending March-April payout.',
     },
   ]);
 }
 
-async function createProducts(sellers) {
-  return Product.insertMany([
+async function createCoupons(admin) {
+  return Coupon.insertMany([
     {
-      sellerId: sellers[0]._id,
-      title: "Data Structures Handbook",
-      description:
-        "Clean second-hand copy with highlighted placement-focused notes.",
-      category: "Books",
-      price: 220,
-      imageUrl: unsplashImages.books,
-      condition: "good",
-      stock: 7,
+      code: 'CAMPUS10',
+      description: '10% off across the marketplace',
+      type: 'percent',
+      value: 10,
+      maxDiscount: 300,
+      minOrderValue: 1000,
+      usageLimit: 100,
+      perUserLimit: 2,
+      startsAt: date('2026-03-01T00:00:00.000Z'),
+      endsAt: date('2026-05-30T23:59:59.000Z'),
       isActive: true,
-      status: "approved",
-      coupon: {
-        code: "BOOKS15",
-        type: "percent",
-        value: 15,
-        minOrderAmount: 150,
-        description: "15% off on books",
-      },
+      createdBy: admin._id,
     },
     {
-      sellerId: sellers[0]._id,
-      title: "Scientific Calculator FX-991",
-      description:
-        "Reliable calculator ideal for engineering math and physics exams.",
-      category: "Electronics",
-      price: 650,
-      imageUrl: unsplashImages.electronics,
-      condition: "like-new",
-      stock: 4,
+      code: 'LABSAVE250',
+      description: 'Flat Rs 250 off on larger orders',
+      type: 'flat',
+      value: 250,
+      maxDiscount: 0,
+      minOrderValue: 2500,
+      usageLimit: 50,
+      perUserLimit: 1,
+      startsAt: date('2026-03-15T00:00:00.000Z'),
+      endsAt: date('2026-05-15T23:59:59.000Z'),
       isActive: true,
-      status: "approved",
-      coupon: {
-        code: "TECH50",
-        type: "flat",
-        value: 50,
-        minOrderAmount: 400,
-        description: "₹50 off on electronics",
-      },
+      createdBy: admin._id,
     },
     {
-      sellerId: sellers[0]._id,
-      title: "Campus Club Hoodie",
-      description:
-        "Official hoodie in excellent condition and perfect for hostel evenings.",
-      category: "Accessories",
-      price: 900,
-      imageUrl: unsplashImages.accessories,
-      condition: "good",
-      stock: 3,
-      isActive: true,
-      status: "approved",
-      coupon: {
-        code: "HOODIE10",
-        type: "percent",
-        value: 10,
-        minOrderAmount: 0,
-        description: "10% off hoodie",
-      },
-    },
-    {
-      sellerId: sellers[1]._id,
-      title: "Breadboard + Sensor Kit",
-      description:
-        "Starter electronics kit for mini projects and lab practice.",
-      category: "Lab Equipment",
-      price: 1200,
-      imageUrl: unsplashImages.lab,
-      condition: "new",
-      stock: 5,
-      isActive: true,
-      status: "approved",
-      coupon: {
-        code: "LAB100",
-        type: "flat",
-        value: 100,
-        minOrderAmount: 1000,
-        description: "₹100 off lab kits",
-      },
-    },
-    {
-      sellerId: sellers[1]._id,
-      title: "Bluetooth Earbuds",
-      description:
-        "Compact earbuds with charging case and good classroom audio clarity.",
-      category: "Electronics",
-      price: 1100,
-      imageUrl: unsplashImages.electronics,
-      condition: "good",
-      stock: 6,
-      isActive: true,
-      status: "approved",
-      coupon: {
-        code: "AUDIO20",
-        type: "percent",
-        value: 20,
-        minOrderAmount: 500,
-        description: "20% off audio devices",
-      },
-    },
-    {
-      sellerId: sellers[1]._id,
-      title: "Laptop Sleeve 14-inch",
-      description:
-        "Water-resistant sleeve with padded interior and side pocket.",
-      category: "Accessories",
-      price: 480,
-      imageUrl: unsplashImages.accessories,
-      condition: "new",
-      stock: 10,
-      isActive: true,
-      status: "approved",
-      coupon: null,
-    },
-    {
-      sellerId: sellers[2]._id,
-      title: "Operating Systems Textbook",
-      description:
-        "Semester-ready reference copy with chapter summaries and solved problems.",
-      category: "Books",
-      price: 350,
-      imageUrl: unsplashImages.books,
-      condition: "fair",
-      stock: 8,
-      isActive: true,
-      status: "approved",
-      coupon: {
-        code: "TEXTBOOK25",
-        type: "percent",
-        value: 25,
-        minOrderAmount: 300,
-        description: "25% off textbooks",
-      },
-    },
-    {
-      sellerId: sellers[2]._id,
-      title: "Digital Multimeter",
-      description:
-        "Accurate multimeter for lab sessions and electronics troubleshooting.",
-      category: "Lab Equipment",
-      price: 980,
-      imageUrl: unsplashImages.lab,
-      condition: "like-new",
-      stock: 2,
-      isActive: true,
-      status: "approved",
-      coupon: null,
+      code: 'OLD100',
+      description: 'Expired flat discount',
+      type: 'flat',
+      value: 100,
+      maxDiscount: 0,
+      minOrderValue: 500,
+      usageLimit: 10,
+      perUserLimit: 1,
+      startsAt: date('2026-01-01T00:00:00.000Z'),
+      endsAt: date('2026-02-01T23:59:59.000Z'),
+      isActive: false,
+      createdBy: admin._id,
     },
   ]);
 }
 
-async function createServices(sellers) {
-  return Service.insertMany([
-    {
-      sellerId: sellers[2]._id,
-      title: "First-Year Math Tutoring",
-      description:
-        "Concept-first tutoring for calculus, algebra, and engineering math.",
-      category: "Tutoring",
-      price: 500,
-      imageUrl: unsplashImages.tutoring,
-      availability: "Weekdays after 5 PM",
-      isActive: true,
-      status: "approved",
-      coupon: {
-        code: "TUTORING30",
-        type: "percent",
-        value: 30,
-        minOrderAmount: 400,
-        description: "30% off tutoring sessions",
-      },
-    },
-    {
-      sellerId: sellers[1]._id,
-      title: "Poster and Resume Design",
-      description:
-        "Fast-turnaround design support for resumes, posters, and event collateral.",
-      category: "Design",
-      price: 800,
-      imageUrl: unsplashImages.design,
-      availability: "Sat-Sun 10 AM to 6 PM",
-      isActive: true,
-      status: "approved",
-      coupon: {
-        code: "DESIGN150",
-        type: "flat",
-        value: 150,
-        minOrderAmount: 600,
-        description: "₹150 off design services",
-      },
-    },
-    {
-      sellerId: sellers[1]._id,
-      title: "React Debugging Session",
-      description:
-        "One-on-one help for React assignments, routing bugs, and UI cleanup.",
-      category: "Coding",
-      price: 1000,
-      imageUrl: unsplashImages.coding,
-      availability: "Mon, Wed, Fri evenings",
-      isActive: true,
-      status: "approved",
-      coupon: {
-        code: "CODE200",
-        type: "flat",
-        value: 200,
-        minOrderAmount: 800,
-        description: "₹200 off coding help",
-      },
-    },
-    {
-      sellerId: sellers[2]._id,
-      title: "SOP and LinkedIn Writing Help",
-      description:
-        "Editing support for SOPs, internship mailers, and LinkedIn profiles.",
-      category: "Content Writing",
-      price: 650,
-      imageUrl: unsplashImages.writing,
-      availability: "Daily 2 PM to 8 PM",
-      isActive: true,
-      status: "approved",
-      coupon: null,
-    },
-    {
-      sellerId: sellers[0]._id,
-      title: "Engineering Drawing Crash Course",
-      description:
-        "Practical help for drawings, projections, and lab record prep.",
-      category: "Tutoring",
-      price: 700,
-      imageUrl: unsplashImages.tutoring,
-      availability: "Tuesday and Thursday 6 PM",
-      isActive: true,
-      status: "approved",
-      coupon: {
-        code: "ENGG25",
-        type: "percent",
-        value: 25,
-        minOrderAmount: 0,
-        description: "25% off engineering course",
-      },
-    },
-    {
-      sellerId: sellers[2]._id,
-      title: "Content Editing for Clubs",
-      description:
-        "Polish event descriptions, proposal decks, and social copy for student clubs.",
-      category: "Content Writing",
-      price: 550,
-      imageUrl: unsplashImages.writing,
-      availability: "Flexible with prior notice",
-      isActive: true,
-      status: "approved",
-      coupon: null,
-    },
-  ]);
+const serviceSeed = [
+  { title: 'Tutoring', category: 'Academic Support', price: 1200, duration: '2 hours' },
+  { title: 'PCB Design', category: 'Electronics Services', price: 2800, duration: '3 days' },
+  { title: '3D Printing', category: 'Fabrication', price: 2200, duration: '2 days' },
+  { title: 'Lab Assistance', category: 'Academic Support', price: 900, duration: '90 minutes' },
+  { title: 'Project Help', category: 'Project Services', price: 1800, duration: '2 sessions' },
+  { title: 'Coding Help', category: 'Programming', price: 1600, duration: '2 hours' },
+];
+
+async function createServices() {
+  return Service.insertMany(
+    serviceSeed.map((service) => ({
+      ...service,
+      description: `${service.title} support for campus buyers with admin-managed delivery and follow-up.`,
+      imageUrl: images.service,
+      availability: 'Mon-Sat, 10:00 AM to 7:00 PM',
+      status: 'active',
+      isFeatured: true,
+    })),
+  );
 }
 
-function timeline(statuses) {
-  return statuses.map((entry) => ({
-    status: entry.status,
-    timestamp: new Date(entry.timestamp),
-  }));
+const productSeed = [
+  {
+    supplierIndex: 0,
+    listingSource: 'supplier',
+    title: 'Digital Clamp Meter',
+    category: 'Electrical',
+    condition: 'like-new',
+    quotedPrice: 1350,
+    sellingPrice: 1650,
+    discountPercent: 8,
+    availableStock: 12,
+    lowStockThreshold: 3,
+    status: 'approved',
+    imageUrl: images.electrical,
+  },
+  {
+    supplierIndex: 0,
+    listingSource: 'supplier',
+    title: 'Relay Control Board',
+    category: 'Electronic Modules',
+    condition: 'new',
+    quotedPrice: 420,
+    sellingPrice: 590,
+    discountPercent: 5,
+    availableStock: 16,
+    lowStockThreshold: 4,
+    status: 'approved',
+    imageUrl: images.modules,
+  },
+  {
+    supplierIndex: 0,
+    listingSource: 'supplier',
+    title: 'CNC Tool Holder',
+    category: 'Mechanical',
+    condition: 'good',
+    quotedPrice: 880,
+    sellingPrice: 1120,
+    discountPercent: 10,
+    availableStock: 10,
+    lowStockThreshold: 3,
+    status: 'approved',
+    imageUrl: images.mechanical,
+  },
+  {
+    supplierIndex: 0,
+    listingSource: 'supplier',
+    title: 'Breadboard Power Supply',
+    category: 'Electronic Modules',
+    condition: 'new',
+    quotedPrice: 310,
+    sellingPrice: 470,
+    discountPercent: 6,
+    availableStock: 18,
+    lowStockThreshold: 4,
+    status: 'approved',
+    imageUrl: images.modules,
+  },
+  {
+    supplierIndex: 1,
+    listingSource: 'supplier',
+    title: 'Three Phase Contactor',
+    category: 'Electrical',
+    condition: 'good',
+    quotedPrice: 1420,
+    sellingPrice: 1790,
+    discountPercent: 7,
+    availableStock: 8,
+    lowStockThreshold: 2,
+    status: 'approved',
+    imageUrl: images.electrical,
+  },
+  {
+    supplierIndex: 1,
+    listingSource: 'supplier',
+    title: 'Pneumatic Fitting Kit',
+    category: 'Mechanical',
+    condition: 'new',
+    quotedPrice: 980,
+    sellingPrice: 1260,
+    discountPercent: 12,
+    availableStock: 14,
+    lowStockThreshold: 3,
+    status: 'approved',
+    imageUrl: images.mechanical,
+  },
+  {
+    supplierIndex: 1,
+    listingSource: 'supplier',
+    title: 'Sensor Interface Shield',
+    category: 'Electronic Modules',
+    condition: 'like-new',
+    quotedPrice: 760,
+    sellingPrice: 980,
+    discountPercent: 9,
+    availableStock: 15,
+    lowStockThreshold: 4,
+    status: 'approved',
+    imageUrl: images.modules,
+  },
+  {
+    supplierIndex: 1,
+    listingSource: 'supplier',
+    title: 'Gear Coupling Set',
+    category: 'Mechanical',
+    condition: 'good',
+    quotedPrice: 650,
+    sellingPrice: 860,
+    discountPercent: 4,
+    availableStock: 20,
+    lowStockThreshold: 5,
+    status: 'approved',
+    imageUrl: images.mechanical,
+  },
+  {
+    supplierIndex: 2,
+    listingSource: 'supplier',
+    title: 'DC Bench Power Lead Set',
+    category: 'Electrical',
+    condition: 'like-new',
+    quotedPrice: 540,
+    sellingPrice: 720,
+    discountPercent: 5,
+    availableStock: 11,
+    lowStockThreshold: 3,
+    status: 'approved',
+    imageUrl: images.electrical,
+  },
+  {
+    supplierIndex: 2,
+    listingSource: 'supplier',
+    title: 'Stepper Motor Driver Board',
+    category: 'Electronic Modules',
+    condition: 'new',
+    quotedPrice: 830,
+    sellingPrice: 1100,
+    discountPercent: 11,
+    availableStock: 9,
+    lowStockThreshold: 3,
+    status: 'approved',
+    imageUrl: images.modules,
+  },
+  {
+    supplierIndex: 2,
+    listingSource: 'supplier',
+    title: 'Aluminum Bearing Block',
+    category: 'Mechanical',
+    condition: 'new',
+    quotedPrice: 460,
+    sellingPrice: null,
+    discountPercent: 0,
+    availableStock: 0,
+    lowStockThreshold: 3,
+    status: 'pending',
+    imageUrl: images.mechanical,
+  },
+  {
+    supplierIndex: 2,
+    listingSource: 'supplier',
+    title: 'Oscilloscope Probe Pair',
+    category: 'Electrical',
+    condition: 'fair',
+    quotedPrice: 390,
+    sellingPrice: null,
+    discountPercent: 0,
+    availableStock: 0,
+    lowStockThreshold: 2,
+    status: 'rejected',
+    rejectionReason: 'Please upload a clearer product image and correct the condition details.',
+    imageUrl: images.electrical,
+  },
+  {
+    supplierIndex: null,
+    listingSource: 'admin',
+    title: 'Soldering Iron Station',
+    category: 'Electrical',
+    condition: 'new',
+    quotedPrice: 0,
+    sellingPrice: 2400,
+    discountPercent: 15,
+    availableStock: 13,
+    lowStockThreshold: 4,
+    status: 'approved',
+    imageUrl: images.electrical,
+  },
+  {
+    supplierIndex: null,
+    listingSource: 'admin',
+    title: '3D Printer Nozzle Pack',
+    category: 'Mechanical',
+    condition: 'new',
+    quotedPrice: 0,
+    sellingPrice: 900,
+    discountPercent: 5,
+    availableStock: 22,
+    lowStockThreshold: 5,
+    status: 'approved',
+    imageUrl: images.mechanical,
+  },
+  {
+    supplierIndex: null,
+    listingSource: 'admin',
+    title: 'ESP32 Development Module',
+    category: 'Electronic Modules',
+    condition: 'new',
+    quotedPrice: 0,
+    sellingPrice: 980,
+    discountPercent: 10,
+    availableStock: 18,
+    lowStockThreshold: 4,
+    status: 'approved',
+    imageUrl: images.modules,
+  },
+];
+
+async function createProducts(admin, suppliers) {
+  return Product.insertMany(
+    productSeed.map((product) => {
+      const basePrice =
+        product.sellingPrice === null || product.sellingPrice === undefined
+          ? Number(product.quotedPrice || 0)
+          : Number(product.sellingPrice || 0);
+      const effectiveDiscount = Number(product.discountPercent || 0) > 0 ? Number(product.discountPercent || 0) : 0;
+      const finalPrice = Math.round(basePrice * (1 - effectiveDiscount / 100));
+
+      return {
+        title: product.title,
+        description: `${product.title} for campus labs, projects, and rapid prototyping.`,
+        category: product.category,
+        imageUrl: product.imageUrl,
+        condition: product.condition,
+        quotedPrice: product.quotedPrice,
+        sellingPrice: product.sellingPrice,
+        discountPercent: product.discountPercent,
+        discountActive: Number(product.discountPercent || 0) > 0,
+        finalPrice,
+        availableStock: product.availableStock,
+        lowStockThreshold: product.lowStockThreshold,
+        unitsSold: 0,
+        isFeatured: product.status === 'approved',
+        isFlashSale:
+          product.title === 'ESP32 Development Module' || product.title === 'Soldering Iron Station',
+        hasLowStockAlert: false,
+        status: product.status,
+        rejectionReason: product.rejectionReason || '',
+        approvedAt: product.status === 'approved' ? date('2026-02-25T09:00:00.000Z') : null,
+        approvedBy: product.status === 'approved' ? admin._id : null,
+        listingSource: product.listingSource,
+        supplierId: product.supplierIndex === null ? null : suppliers[product.supplierIndex]._id,
+      };
+    }),
+  );
 }
 
-async function createOrders(buyers, sellers, products) {
-  const [rahul, megha, pooja, kabir, anvi] = buyers;
-
-  return Order.insertMany([
-    {
-      buyerId: rahul._id,
-      sellerId: sellers[0]._id,
-      items: [
-        {
-          productId: products[0]._id,
-          title: products[0].title,
-          category: products[0].category,
-          imageUrl: products[0].imageUrl,
-          quantity: 1,
-          price: products[0].price,
-        },
-      ],
-      totalAmount: 220,
-      platformFee: 11,
-      finalAmount: 231,
-      paymentStatus: "paid",
-      paymentMethod: "card",
-      transactionId: "TXN_1712210001",
-      orderStatus: "placed",
-      statusTimeline: timeline([
-        { status: "placed", timestamp: "2026-03-28T09:00:00.000Z" },
-      ]),
-      deliveryAddress: "Hostel A, Room 204",
-      createdAt: new Date("2026-03-28T09:00:00.000Z"),
-      updatedAt: new Date("2026-03-28T09:00:00.000Z"),
-    },
-    {
-      buyerId: megha._id,
-      sellerId: sellers[0]._id,
-      items: [
-        {
-          productId: products[1]._id,
-          title: products[1].title,
-          category: products[1].category,
-          imageUrl: products[1].imageUrl,
-          quantity: 1,
-          price: products[1].price,
-        },
-      ],
-      totalAmount: 650,
-      platformFee: 33,
-      finalAmount: 683,
-      paymentStatus: "paid",
-      paymentMethod: "upi",
-      transactionId: "TXN_1712210002",
-      statusTimeline: timeline([
-        { status: "placed", timestamp: "2026-03-20T10:00:00.000Z" },
-        { status: "confirmed", timestamp: "2026-03-20T12:00:00.000Z" },
-      ]),
-      deliveryAddress: "Girls Hostel, Room 118",
-      createdAt: new Date("2026-03-20T10:00:00.000Z"),
-      updatedAt: new Date("2026-03-20T12:00:00.000Z"),
-    },
-    {
-      buyerId: pooja._id,
-      sellerId: sellers[1]._id,
-      items: [
-        {
-          productId: products[4]._id,
-          title: products[4].title,
-          category: products[4].category,
-          imageUrl: products[4].imageUrl,
-          quantity: 1,
-          price: products[4].price,
-        },
-      ],
-      totalAmount: 1100,
-      platformFee: 55,
-      finalAmount: 1155,
-      paymentStatus: "paid",
-      paymentMethod: "card",
-      transactionId: "TXN_1712210003",
-      statusTimeline: timeline([
-        { status: "placed", timestamp: "2026-03-15T08:30:00.000Z" },
-        { status: "confirmed", timestamp: "2026-03-15T11:30:00.000Z" },
-        { status: "shipped", timestamp: "2026-03-16T14:00:00.000Z" },
-      ]),
-      deliveryAddress: "Block C, Room 16",
-      createdAt: new Date("2026-03-15T08:30:00.000Z"),
-      updatedAt: new Date("2026-03-16T14:00:00.000Z"),
-    },
-    {
-      buyerId: kabir._id,
-      sellerId: sellers[2]._id,
-      items: [
-        {
-          productId: products[6]._id,
-          title: products[6].title,
-          category: products[6].category,
-          imageUrl: products[6].imageUrl,
-          quantity: 2,
-          price: products[6].price,
-        },
-      ],
-      totalAmount: 700,
-      platformFee: 35,
-      finalAmount: 735,
-      paymentStatus: "paid",
-      paymentMethod: "cod",
-      transactionId: "TXN_1712210004",
-      statusTimeline: timeline([
-        { status: "placed", timestamp: "2026-03-10T08:30:00.000Z" },
-        { status: "confirmed", timestamp: "2026-03-10T11:30:00.000Z" },
-        { status: "shipped", timestamp: "2026-03-11T14:00:00.000Z" },
-        { status: "delivered", timestamp: "2026-03-12T16:45:00.000Z" },
-      ]),
-      deliveryAddress: "Hostel D, Room 44",
-      createdAt: new Date("2026-03-10T08:30:00.000Z"),
-      updatedAt: new Date("2026-03-12T16:45:00.000Z"),
-    },
-    {
-      buyerId: anvi._id,
-      sellerId: sellers[2]._id,
-      items: [
-        {
-          productId: products[7]._id,
-          title: products[7].title,
-          category: products[7].category,
-          imageUrl: products[7].imageUrl,
-          quantity: 1,
-          price: products[7].price,
-        },
-      ],
-      totalAmount: 980,
-      platformFee: 49,
-      finalAmount: 1029,
-      paymentStatus: "paid",
-      paymentMethod: "card",
-      transactionId: "TXN_1712210005",
-      statusTimeline: timeline([
-        { status: "placed", timestamp: "2026-03-05T08:30:00.000Z" },
-        { status: "confirmed", timestamp: "2026-03-05T10:00:00.000Z" },
-        { status: "shipped", timestamp: "2026-03-06T09:45:00.000Z" },
-        { status: "delivered", timestamp: "2026-03-07T13:30:00.000Z" },
-      ]),
-      deliveryAddress: "Girls Hostel, Room 31",
-      createdAt: new Date("2026-03-05T08:30:00.000Z"),
-      updatedAt: new Date("2026-03-07T13:30:00.000Z"),
-    },
-    {
-      buyerId: rahul._id,
-      sellerId: sellers[1]._id,
-      items: [
-        {
-          productId: products[5]._id,
-          title: products[5].title,
-          category: products[5].category,
-          imageUrl: products[5].imageUrl,
-          quantity: 2,
-          price: products[5].price,
-        },
-      ],
-      totalAmount: 960,
-      platformFee: 48,
-      finalAmount: 1008,
-      paymentStatus: "paid",
-      paymentMethod: "upi",
-      transactionId: "TXN_1712210006",
-      statusTimeline: timeline([
-        { status: "placed", timestamp: "2026-03-21T08:30:00.000Z" },
-        { status: "cancelled", timestamp: "2026-03-21T09:30:00.000Z" },
-      ]),
-      deliveryAddress: "Hostel A, Room 204",
-      createdAt: new Date("2026-03-21T08:30:00.000Z"),
-      updatedAt: new Date("2026-03-21T09:30:00.000Z"),
-    },
-    {
-      buyerId: pooja._id,
-      sellerId: sellers[0]._id,
-      items: [
-        {
-          productId: products[2]._id,
-          title: products[2].title,
-          category: products[2].category,
-          imageUrl: products[2].imageUrl,
-          quantity: 1,
-          price: products[2].price,
-        },
-      ],
-      totalAmount: 900,
-      platformFee: 45,
-      finalAmount: 945,
-      paymentStatus: "paid",
-      paymentMethod: "cod",
-      transactionId: "TXN_1712210007",
-      statusTimeline: timeline([
-        { status: "placed", timestamp: "2026-02-25T08:30:00.000Z" },
-        { status: "confirmed", timestamp: "2026-02-25T11:30:00.000Z" },
-        { status: "shipped", timestamp: "2026-02-26T09:00:00.000Z" },
-        { status: "delivered", timestamp: "2026-02-27T13:15:00.000Z" },
-      ]),
-      deliveryAddress: "Block C, Room 16",
-      createdAt: new Date("2026-02-25T08:30:00.000Z"),
-      updatedAt: new Date("2026-02-27T13:15:00.000Z"),
-    },
-    {
-      buyerId: kabir._id,
-      sellerId: sellers[1]._id,
-      items: [
-        {
-          productId: products[3]._id,
-          title: products[3].title,
-          category: products[3].category,
-          imageUrl: products[3].imageUrl,
-          quantity: 1,
-          price: products[3].price,
-        },
-      ],
-      totalAmount: 1200,
-      platformFee: 60,
-      finalAmount: 1260,
-      paymentStatus: "paid",
-      paymentMethod: "card",
-      transactionId: "TXN_1712210008",
-      statusTimeline: timeline([
-        { status: "placed", timestamp: "2026-02-18T08:30:00.000Z" },
-        { status: "confirmed", timestamp: "2026-02-18T10:15:00.000Z" },
-        { status: "shipped", timestamp: "2026-02-19T11:00:00.000Z" },
-        { status: "delivered", timestamp: "2026-02-20T15:00:00.000Z" },
-      ]),
-      deliveryAddress: "Hostel D, Room 44",
-      createdAt: new Date("2026-02-18T08:30:00.000Z"),
-      updatedAt: new Date("2026-02-20T15:00:00.000Z"),
-    },
-    {
-      buyerId: anvi._id,
-      sellerId: sellers[0]._id,
-      items: [
-        {
-          productId: products[0]._id,
-          title: products[0].title,
-          category: products[0].category,
-          imageUrl: products[0].imageUrl,
-          quantity: 1,
-          price: products[0].price,
-        },
-      ],
-      totalAmount: 220,
-      platformFee: 11,
-      finalAmount: 231,
-      paymentStatus: "paid",
-      paymentMethod: "upi",
-      transactionId: "TXN_1712210009",
-      statusTimeline: timeline([
-        { status: "placed", timestamp: "2026-01-22T08:30:00.000Z" },
-        { status: "confirmed", timestamp: "2026-01-22T09:30:00.000Z" },
-        { status: "shipped", timestamp: "2026-01-23T10:00:00.000Z" },
-        { status: "delivered", timestamp: "2026-01-24T14:00:00.000Z" },
-      ]),
-      deliveryAddress: "Girls Hostel, Room 31",
-      createdAt: new Date("2026-01-22T08:30:00.000Z"),
-      updatedAt: new Date("2026-01-24T14:00:00.000Z"),
-    },
-    {
-      buyerId: megha._id,
-      sellerId: sellers[2]._id,
-      items: [
-        {
-          productId: products[6]._id,
-          title: products[6].title,
-          category: products[6].category,
-          imageUrl: products[6].imageUrl,
-          quantity: 1,
-          price: products[6].price,
-        },
-      ],
-      totalAmount: 350,
-      platformFee: 18,
-      finalAmount: 368,
-      paymentStatus: "paid",
-      paymentMethod: "card",
-      transactionId: "TXN_1712210010",
-      statusTimeline: timeline([
-        { status: "placed", timestamp: "2026-03-01T08:30:00.000Z" },
-        { status: "confirmed", timestamp: "2026-03-01T10:00:00.000Z" },
-        { status: "shipped", timestamp: "2026-03-02T09:45:00.000Z" },
-        { status: "delivered", timestamp: "2026-03-03T13:30:00.000Z" },
-      ]),
-      deliveryAddress: "Girls Hostel, Room 118",
-      createdAt: new Date("2026-03-01T08:30:00.000Z"),
-      updatedAt: new Date("2026-03-03T13:30:00.000Z"),
-    },
-  ]);
+function buildOrderItem(productDoc, quantity) {
+  return {
+    productId: productDoc._id,
+    supplierId: productDoc.supplierId || null,
+    title: productDoc.title,
+    category: productDoc.category,
+    imageUrl: productDoc.imageUrl,
+    quantity,
+    quotedPrice: Number(productDoc.quotedPrice || 0),
+    sellingPrice:
+      productDoc.sellingPrice === null || productDoc.sellingPrice === undefined
+        ? Number(productDoc.quotedPrice || 0)
+        : Number(productDoc.sellingPrice || 0),
+    discountPercent: productDoc.discountActive ? Number(productDoc.discountPercent || 0) : 0,
+    finalUnitPrice: Number(productDoc.finalPrice || 0),
+    lineTotal: Number((Number(productDoc.finalPrice || 0) * quantity).toFixed(2)),
+    supplierPayable: Number((Number(productDoc.quotedPrice || 0) * quantity).toFixed(2)),
+  };
 }
 
-async function createBookings(buyers, sellers, services) {
-  return Booking.insertMany([
+async function createOrders(buyers, products) {
+  const productMap = new Map(products.map((product) => [product.title, product]));
+  const orders = [
     {
       buyerId: buyers[0]._id,
-      sellerId: sellers[2]._id,
-      serviceId: services[0]._id,
-      serviceTitle: services[0].title,
-      scheduledDate: new Date("2026-04-08T12:00:00.000Z"),
-      duration: "2 hours",
-      totalAmount: services[0].price,
-      platformFee: 25,
-      finalAmount: 525,
-      originalAmount: services[0].price,
-      discountAmount: 0,
-      couponCode: "",
-      paymentStatus: "pending",
-      paymentMethod: "card",
-      transactionId: "BKG_1712211001",
-      bookingStatus: "pending",
-      createdAt: new Date("2026-04-05T10:00:00.000Z"),
-      updatedAt: new Date("2026-04-05T10:00:00.000Z"),
+      items: [
+        buildOrderItem(productMap.get('Digital Clamp Meter'), 1),
+        buildOrderItem(productMap.get('Relay Control Board'), 2),
+      ],
+      couponCode: 'CAMPUS10',
+      createdAt: date('2026-03-18T09:00:00.000Z'),
+      statusTimeline: timeline([
+        { status: 'placed', timestamp: '2026-03-18T09:00:00.000Z' },
+        { status: 'confirmed', timestamp: '2026-03-18T12:00:00.000Z' },
+        { status: 'shipped', timestamp: '2026-03-19T09:30:00.000Z' },
+        { status: 'delivered', timestamp: '2026-03-20T17:10:00.000Z' },
+      ]),
+      orderStatus: 'delivered',
     },
     {
       buyerId: buyers[1]._id,
-      sellerId: sellers[1]._id,
-      serviceId: services[2]._id,
-      serviceTitle: services[2].title,
-      scheduledDate: new Date("2026-04-06T15:00:00.000Z"),
-      duration: "90 minutes",
-      totalAmount: services[2].price,
-      platformFee: 50,
-      finalAmount: 1050,
-      originalAmount: services[2].price,
-      discountAmount: 0,
-      couponCode: "",
-      paymentStatus: "paid",
-      paymentMethod: "upi",
-      transactionId: "BKG_1712211002",
-      bookingStatus: "confirmed",
-      sellerConfirmedAt: new Date("2026-04-05T11:30:00.000Z"),
-      paidAt: new Date("2026-04-05T12:00:00.000Z"),
-      createdAt: new Date("2026-04-04T14:00:00.000Z"),
-      updatedAt: new Date("2026-04-05T12:00:00.000Z"),
+      items: [
+        buildOrderItem(productMap.get('Soldering Iron Station'), 1),
+        buildOrderItem(productMap.get('Three Phase Contactor'), 1),
+      ],
+      couponCode: '',
+      createdAt: date('2026-03-20T10:15:00.000Z'),
+      statusTimeline: timeline([
+        { status: 'placed', timestamp: '2026-03-20T10:15:00.000Z' },
+        { status: 'confirmed', timestamp: '2026-03-20T13:30:00.000Z' },
+        { status: 'shipped', timestamp: '2026-03-21T11:00:00.000Z' },
+        { status: 'delivered', timestamp: '2026-03-22T16:25:00.000Z' },
+      ]),
+      orderStatus: 'delivered',
     },
     {
       buyerId: buyers[2]._id,
-      sellerId: sellers[1]._id,
-      serviceId: services[1]._id,
-      serviceTitle: services[1].title,
-      scheduledDate: new Date("2026-03-25T11:00:00.000Z"),
-      duration: "3 hours",
-      totalAmount: 760,
-      platformFee: 38,
-      finalAmount: 798,
-      originalAmount: services[1].price,
-      discountAmount: 40,
-      couponCode: "DESIGN150",
-      paymentStatus: "paid",
-      paymentMethod: "card",
-      transactionId: "BKG_1712211003",
-      bookingStatus: "completed",
-      sellerConfirmedAt: new Date("2026-03-24T10:00:00.000Z"),
-      paidAt: new Date("2026-03-24T11:00:00.000Z"),
-      createdAt: new Date("2026-03-24T09:00:00.000Z"),
-      updatedAt: new Date("2026-03-25T14:00:00.000Z"),
+      items: [buildOrderItem(productMap.get('Sensor Interface Shield'), 1)],
+      couponCode: '',
+      createdAt: date('2026-03-24T08:45:00.000Z'),
+      statusTimeline: timeline([
+        { status: 'placed', timestamp: '2026-03-24T08:45:00.000Z' },
+        { status: 'confirmed', timestamp: '2026-03-24T11:15:00.000Z' },
+        { status: 'shipped', timestamp: '2026-03-25T09:00:00.000Z' },
+        { status: 'delivered', timestamp: '2026-03-26T14:40:00.000Z' },
+      ]),
+      orderStatus: 'delivered',
     },
     {
       buyerId: buyers[3]._id,
-      sellerId: sellers[2]._id,
-      serviceId: services[3]._id,
-      serviceTitle: services[3].title,
-      scheduledDate: new Date("2026-03-20T11:00:00.000Z"),
-      duration: "1 hour",
-      totalAmount: services[3].price,
-      platformFee: 33,
-      finalAmount: 683,
-      originalAmount: services[3].price,
-      discountAmount: 0,
-      couponCode: "",
-      paymentStatus: "paid",
-      paymentMethod: "upi",
-      transactionId: "BKG_1712211004",
-      bookingStatus: "completed",
-      sellerConfirmedAt: new Date("2026-03-19T15:00:00.000Z"),
-      paidAt: new Date("2026-03-19T16:00:00.000Z"),
-      createdAt: new Date("2026-03-19T14:00:00.000Z"),
-      updatedAt: new Date("2026-03-20T12:00:00.000Z"),
-    },
-    {
-      buyerId: buyers[4]._id,
-      sellerId: sellers[0]._id,
-      serviceId: services[4]._id,
-      serviceTitle: services[4].title,
-      scheduledDate: new Date("2026-03-29T17:00:00.000Z"),
-      duration: "2 hours",
-      totalAmount: services[4].price,
-      platformFee: 35,
-      finalAmount: 735,
-      originalAmount: services[4].price,
-      discountAmount: 0,
-      couponCode: "",
-      paymentStatus: "paid",
-      paymentMethod: "card",
-      transactionId: "BKG_1712211005",
-      bookingStatus: "cancelled",
-      createdAt: new Date("2026-03-28T09:00:00.000Z"),
-      updatedAt: new Date("2026-03-28T10:00:00.000Z"),
+      items: [
+        buildOrderItem(productMap.get('Gear Coupling Set'), 2),
+        buildOrderItem(productMap.get('3D Printer Nozzle Pack'), 1),
+      ],
+      couponCode: 'LABSAVE250',
+      createdAt: date('2026-03-27T14:00:00.000Z'),
+      statusTimeline: timeline([
+        { status: 'placed', timestamp: '2026-03-27T14:00:00.000Z' },
+        { status: 'confirmed', timestamp: '2026-03-27T16:00:00.000Z' },
+        { status: 'shipped', timestamp: '2026-03-28T10:30:00.000Z' },
+        { status: 'delivered', timestamp: '2026-03-29T15:05:00.000Z' },
+      ]),
+      orderStatus: 'delivered',
     },
     {
       buyerId: buyers[0]._id,
-      sellerId: sellers[1]._id,
-      serviceId: services[2]._id,
-      serviceTitle: services[2].title,
-      scheduledDate: new Date("2026-04-10T16:00:00.000Z"),
-      duration: "1 hour",
-      totalAmount: 800,
-      platformFee: 40,
-      finalAmount: 840,
-      originalAmount: services[2].price,
-      discountAmount: 200,
-      couponCode: "CODE200",
-      paymentStatus: "pending",
-      paymentMethod: "card",
-      transactionId: "BKG_1712211006",
-      bookingStatus: "pending",
-      createdAt: new Date("2026-04-06T08:00:00.000Z"),
-      updatedAt: new Date("2026-04-06T08:00:00.000Z"),
+      items: [buildOrderItem(productMap.get('DC Bench Power Lead Set'), 1)],
+      couponCode: '',
+      createdAt: date('2026-03-30T09:20:00.000Z'),
+      statusTimeline: timeline([
+        { status: 'placed', timestamp: '2026-03-30T09:20:00.000Z' },
+        { status: 'confirmed', timestamp: '2026-03-30T11:40:00.000Z' },
+        { status: 'shipped', timestamp: '2026-03-31T13:10:00.000Z' },
+        { status: 'delivered', timestamp: '2026-04-01T17:50:00.000Z' },
+      ]),
+      orderStatus: 'delivered',
+    },
+    {
+      buyerId: buyers[1]._id,
+      items: [buildOrderItem(productMap.get('Stepper Motor Driver Board'), 2)],
+      couponCode: '',
+      createdAt: date('2026-04-02T08:10:00.000Z'),
+      statusTimeline: timeline([
+        { status: 'placed', timestamp: '2026-04-02T08:10:00.000Z' },
+        { status: 'confirmed', timestamp: '2026-04-02T11:20:00.000Z' },
+        { status: 'shipped', timestamp: '2026-04-03T09:00:00.000Z' },
+        { status: 'delivered', timestamp: '2026-04-04T12:35:00.000Z' },
+      ]),
+      orderStatus: 'delivered',
     },
     {
       buyerId: buyers[2]._id,
-      sellerId: sellers[0]._id,
-      serviceId: services[4]._id,
-      serviceTitle: services[4].title,
-      scheduledDate: new Date("2026-04-12T18:00:00.000Z"),
-      duration: "2 hours",
-      totalAmount: 525,
-      platformFee: 26,
-      finalAmount: 551,
-      originalAmount: services[4].price,
-      discountAmount: 175,
-      couponCode: "ENGG25",
-      paymentStatus: "pending",
-      paymentMethod: "upi",
-      transactionId: "BKG_1712211007",
-      bookingStatus: "pending",
-      createdAt: new Date("2026-04-06T09:00:00.000Z"),
-      updatedAt: new Date("2026-04-06T09:00:00.000Z"),
+      items: [
+        buildOrderItem(productMap.get('ESP32 Development Module'), 1),
+        buildOrderItem(productMap.get('CNC Tool Holder'), 1),
+      ],
+      couponCode: '',
+      createdAt: date('2026-04-05T10:30:00.000Z'),
+      statusTimeline: timeline([
+        { status: 'placed', timestamp: '2026-04-05T10:30:00.000Z' },
+        { status: 'confirmed', timestamp: '2026-04-05T12:10:00.000Z' },
+        { status: 'shipped', timestamp: '2026-04-06T11:00:00.000Z' },
+        { status: 'delivered', timestamp: '2026-04-07T16:10:00.000Z' },
+      ]),
+      orderStatus: 'delivered',
     },
     {
       buyerId: buyers[3]._id,
-      sellerId: sellers[2]._id,
+      items: [buildOrderItem(productMap.get('Breadboard Power Supply'), 1)],
+      couponCode: '',
+      createdAt: date('2026-04-08T09:15:00.000Z'),
+      statusTimeline: timeline([
+        { status: 'placed', timestamp: '2026-04-08T09:15:00.000Z' },
+        { status: 'confirmed', timestamp: '2026-04-08T11:15:00.000Z' },
+        { status: 'shipped', timestamp: '2026-04-09T13:00:00.000Z' },
+      ]),
+      orderStatus: 'shipped',
+    },
+    {
+      buyerId: buyers[0]._id,
+      items: [buildOrderItem(productMap.get('Pneumatic Fitting Kit'), 3)],
+      couponCode: '',
+      createdAt: date('2026-04-09T16:45:00.000Z'),
+      statusTimeline: timeline([
+        { status: 'placed', timestamp: '2026-04-09T16:45:00.000Z' },
+        { status: 'confirmed', timestamp: '2026-04-10T09:20:00.000Z' },
+        { status: 'shipped', timestamp: '2026-04-11T12:15:00.000Z' },
+      ]),
+      orderStatus: 'shipped',
+    },
+    {
+      buyerId: buyers[1]._id,
+      items: [buildOrderItem(productMap.get('Soldering Iron Station'), 1)],
+      couponCode: '',
+      createdAt: date('2026-04-12T12:20:00.000Z'),
+      statusTimeline: timeline([{ status: 'placed', timestamp: '2026-04-12T12:20:00.000Z' }]),
+      orderStatus: 'placed',
+    },
+  ];
+
+  return Order.insertMany(
+    orders.map((order, index) => {
+      const subtotal = order.items.reduce((sum, item) => sum + item.lineTotal, 0);
+      const couponDiscount =
+        order.couponCode === 'CAMPUS10'
+          ? Number((subtotal * 0.1).toFixed(2))
+          : order.couponCode === 'LABSAVE250'
+            ? 250
+            : 0;
+
+      return {
+        buyerId: order.buyerId,
+        items: order.items,
+        subtotal,
+        couponCode: order.couponCode,
+        couponDiscount,
+        totalAmount: Number((subtotal - couponDiscount).toFixed(2)),
+        paymentStatus: 'paid',
+        paymentProvider: index % 2 === 0 ? 'razorpay' : 'manual',
+        paymentMethod: index % 3 === 0 ? 'card' : 'upi',
+        paymentReference: `PAY_2026_${String(index + 1).padStart(3, '0')}`,
+        gatewayOrderId: index % 2 === 0 ? `order_demo_${index + 1}` : '',
+        transactionId: `ORD_2026_${String(index + 1).padStart(3, '0')}`,
+        orderStatus: order.orderStatus,
+        statusTimeline: order.statusTimeline,
+        deliveryAddress: `Campus Hostel Block ${String.fromCharCode(65 + (index % 4))}, Room ${100 + index}`,
+        createdAt: order.createdAt,
+        updatedAt: order.statusTimeline[order.statusTimeline.length - 1].timestamp,
+      };
+    }),
+  );
+}
+
+async function syncOrderLedger(orders) {
+  for (const order of orders) {
+    const creditDocs = order.items
+      .filter((item) => item.supplierId)
+      .map((item) => ({
+        supplierId: item.supplierId,
+        orderId: order._id,
+        orderItemId: item._id,
+        productId: item.productId,
+        type: 'credit',
+        status: 'pending',
+        amount: item.supplierPayable,
+        description: `Order ${order.transactionId} - ${item.title}`,
+        reference: order.transactionId,
+        notes: 'Auto-created from seeded order.',
+        createdAt: order.createdAt,
+        updatedAt: order.createdAt,
+      }));
+
+    const entries = creditDocs.length ? await SupplierLedger.insertMany(creditDocs) : [];
+    const entryMap = new Map(entries.map((entry) => [entry.orderItemId.toString(), entry._id]));
+
+    order.items.forEach((item) => {
+      item.supplierLedgerEntryId = entryMap.get(item._id.toString()) || null;
+    });
+
+    await order.save();
+  }
+}
+
+async function applySeededProductInventory(products, orders) {
+  const orderedUnits = new Map();
+
+  orders.forEach((order) => {
+    if (order.orderStatus === 'cancelled') {
+      return;
+    }
+
+    order.items.forEach((item) => {
+      const key = item.productId.toString();
+      orderedUnits.set(key, (orderedUnits.get(key) || 0) + Number(item.quantity || 0));
+    });
+  });
+
+  const baseStockMap = new Map(
+    productSeed.map((product) => [product.title, Number(product.availableStock || 0)]),
+  );
+
+  for (const product of products) {
+    const orderedQty = orderedUnits.get(product._id.toString()) || 0;
+    const baseStock = baseStockMap.get(product.title) || 0;
+
+    product.unitsSold = orderedQty;
+    product.availableStock = Math.max(baseStock - orderedQty, 0);
+    product.hasLowStockAlert = product.availableStock <= product.lowStockThreshold;
+    product.lowStockAlertAt = product.hasLowStockAlert ? date('2026-04-10T09:00:00.000Z') : null;
+    await product.save();
+  }
+}
+
+async function createBookings(buyers, services) {
+  return Booking.insertMany([
+    {
+      buyerId: buyers[0]._id,
       serviceId: services[0]._id,
       serviceTitle: services[0].title,
-      scheduledDate: new Date("2026-04-09T14:00:00.000Z"),
-      duration: "2 hours",
-      totalAmount: 350,
-      platformFee: 18,
-      finalAmount: 368,
-      originalAmount: services[0].price,
-      discountAmount: 150,
-      couponCode: "TUTORING30",
-      paymentStatus: "paid",
-      paymentMethod: "card",
-      transactionId: "BKG_1712211008",
-      bookingStatus: "confirmed",
-      sellerConfirmedAt: new Date("2026-04-06T10:00:00.000Z"),
-      paidAt: new Date("2026-04-06T11:00:00.000Z"),
-      createdAt: new Date("2026-04-05T15:00:00.000Z"),
-      updatedAt: new Date("2026-04-06T11:00:00.000Z"),
+      scheduledDate: date('2026-03-25T15:00:00.000Z'),
+      duration: services[0].duration,
+      totalAmount: services[0].price,
+      paymentStatus: 'paid',
+      paymentProvider: 'razorpay',
+      paymentMethod: 'card',
+      paymentReference: 'BKG_PAY_001',
+      transactionId: 'BKG_2026_001',
+      bookingStatus: 'completed',
+      statusTimeline: timeline([
+        { status: 'pending', timestamp: '2026-03-22T09:00:00.000Z' },
+        { status: 'confirmed', timestamp: '2026-03-22T12:00:00.000Z' },
+        { status: 'completed', timestamp: '2026-03-25T18:00:00.000Z' },
+      ]),
+      confirmedAt: date('2026-03-22T12:00:00.000Z'),
+      completedAt: date('2026-03-25T18:00:00.000Z'),
+      paidAt: date('2026-03-22T09:05:00.000Z'),
+      createdAt: date('2026-03-22T09:00:00.000Z'),
+      updatedAt: date('2026-03-25T18:00:00.000Z'),
+    },
+    {
+      buyerId: buyers[1]._id,
+      serviceId: services[1]._id,
+      serviceTitle: services[1].title,
+      scheduledDate: date('2026-03-28T11:00:00.000Z'),
+      duration: services[1].duration,
+      totalAmount: services[1].price,
+      paymentStatus: 'paid',
+      paymentProvider: 'manual',
+      paymentMethod: 'upi',
+      paymentReference: 'BKG_PAY_002',
+      transactionId: 'BKG_2026_002',
+      bookingStatus: 'completed',
+      statusTimeline: timeline([
+        { status: 'pending', timestamp: '2026-03-24T10:00:00.000Z' },
+        { status: 'confirmed', timestamp: '2026-03-24T13:00:00.000Z' },
+        { status: 'completed', timestamp: '2026-03-28T13:30:00.000Z' },
+      ]),
+      confirmedAt: date('2026-03-24T13:00:00.000Z'),
+      completedAt: date('2026-03-28T13:30:00.000Z'),
+      paidAt: date('2026-03-24T10:05:00.000Z'),
+      createdAt: date('2026-03-24T10:00:00.000Z'),
+      updatedAt: date('2026-03-28T13:30:00.000Z'),
+    },
+    {
+      buyerId: buyers[2]._id,
+      serviceId: services[2]._id,
+      serviceTitle: services[2].title,
+      scheduledDate: date('2026-04-01T16:00:00.000Z'),
+      duration: services[2].duration,
+      totalAmount: services[2].price,
+      paymentStatus: 'paid',
+      paymentProvider: 'razorpay',
+      paymentMethod: 'card',
+      paymentReference: 'BKG_PAY_003',
+      transactionId: 'BKG_2026_003',
+      bookingStatus: 'completed',
+      statusTimeline: timeline([
+        { status: 'pending', timestamp: '2026-03-29T11:00:00.000Z' },
+        { status: 'confirmed', timestamp: '2026-03-29T15:00:00.000Z' },
+        { status: 'completed', timestamp: '2026-04-01T18:15:00.000Z' },
+      ]),
+      confirmedAt: date('2026-03-29T15:00:00.000Z'),
+      completedAt: date('2026-04-01T18:15:00.000Z'),
+      paidAt: date('2026-03-29T11:05:00.000Z'),
+      createdAt: date('2026-03-29T11:00:00.000Z'),
+      updatedAt: date('2026-04-01T18:15:00.000Z'),
+    },
+    {
+      buyerId: buyers[3]._id,
+      serviceId: services[3]._id,
+      serviceTitle: services[3].title,
+      scheduledDate: date('2026-04-03T13:00:00.000Z'),
+      duration: services[3].duration,
+      totalAmount: services[3].price,
+      paymentStatus: 'paid',
+      paymentProvider: 'manual',
+      paymentMethod: 'upi',
+      paymentReference: 'BKG_PAY_004',
+      transactionId: 'BKG_2026_004',
+      bookingStatus: 'completed',
+      statusTimeline: timeline([
+        { status: 'pending', timestamp: '2026-03-31T09:30:00.000Z' },
+        { status: 'confirmed', timestamp: '2026-03-31T11:00:00.000Z' },
+        { status: 'completed', timestamp: '2026-04-03T15:20:00.000Z' },
+      ]),
+      confirmedAt: date('2026-03-31T11:00:00.000Z'),
+      completedAt: date('2026-04-03T15:20:00.000Z'),
+      paidAt: date('2026-03-31T09:35:00.000Z'),
+      createdAt: date('2026-03-31T09:30:00.000Z'),
+      updatedAt: date('2026-04-03T15:20:00.000Z'),
+    },
+    {
+      buyerId: buyers[0]._id,
+      serviceId: services[4]._id,
+      serviceTitle: services[4].title,
+      scheduledDate: date('2026-04-16T15:00:00.000Z'),
+      duration: services[4].duration,
+      totalAmount: services[4].price,
+      paymentStatus: 'paid',
+      paymentProvider: 'razorpay',
+      paymentMethod: 'card',
+      paymentReference: 'BKG_PAY_005',
+      transactionId: 'BKG_2026_005',
+      bookingStatus: 'confirmed',
+      statusTimeline: timeline([
+        { status: 'pending', timestamp: '2026-04-10T09:00:00.000Z' },
+        { status: 'confirmed', timestamp: '2026-04-10T14:00:00.000Z' },
+      ]),
+      confirmedAt: date('2026-04-10T14:00:00.000Z'),
+      paidAt: date('2026-04-10T09:05:00.000Z'),
+      createdAt: date('2026-04-10T09:00:00.000Z'),
+      updatedAt: date('2026-04-10T14:00:00.000Z'),
+    },
+    {
+      buyerId: buyers[1]._id,
+      serviceId: services[5]._id,
+      serviceTitle: services[5].title,
+      scheduledDate: date('2026-04-17T11:00:00.000Z'),
+      duration: services[5].duration,
+      totalAmount: services[5].price,
+      paymentStatus: 'paid',
+      paymentProvider: 'manual',
+      paymentMethod: 'upi',
+      paymentReference: 'BKG_PAY_006',
+      transactionId: 'BKG_2026_006',
+      bookingStatus: 'confirmed',
+      statusTimeline: timeline([
+        { status: 'pending', timestamp: '2026-04-11T10:00:00.000Z' },
+        { status: 'confirmed', timestamp: '2026-04-11T13:15:00.000Z' },
+      ]),
+      confirmedAt: date('2026-04-11T13:15:00.000Z'),
+      paidAt: date('2026-04-11T10:05:00.000Z'),
+      createdAt: date('2026-04-11T10:00:00.000Z'),
+      updatedAt: date('2026-04-11T13:15:00.000Z'),
+    },
+    {
+      buyerId: buyers[2]._id,
+      serviceId: services[0]._id,
+      serviceTitle: services[0].title,
+      scheduledDate: date('2026-04-20T15:30:00.000Z'),
+      duration: services[0].duration,
+      totalAmount: services[0].price,
+      paymentStatus: 'paid',
+      paymentProvider: 'razorpay',
+      paymentMethod: 'card',
+      paymentReference: 'BKG_PAY_007',
+      transactionId: 'BKG_2026_007',
+      bookingStatus: 'pending',
+      statusTimeline: timeline([{ status: 'pending', timestamp: '2026-04-12T11:00:00.000Z' }]),
+      paidAt: date('2026-04-12T11:05:00.000Z'),
+      createdAt: date('2026-04-12T11:00:00.000Z'),
+      updatedAt: date('2026-04-12T11:00:00.000Z'),
+    },
+    {
+      buyerId: buyers[3]._id,
+      serviceId: services[2]._id,
+      serviceTitle: services[2].title,
+      scheduledDate: date('2026-04-22T10:00:00.000Z'),
+      duration: services[2].duration,
+      totalAmount: services[2].price,
+      paymentStatus: 'paid',
+      paymentProvider: 'manual',
+      paymentMethod: 'upi',
+      paymentReference: 'BKG_PAY_008',
+      transactionId: 'BKG_2026_008',
+      bookingStatus: 'pending',
+      statusTimeline: timeline([{ status: 'pending', timestamp: '2026-04-13T08:30:00.000Z' }]),
+      paidAt: date('2026-04-13T08:35:00.000Z'),
+      createdAt: date('2026-04-13T08:30:00.000Z'),
+      updatedAt: date('2026-04-13T08:30:00.000Z'),
     },
   ]);
 }
 
-async function createReviews(buyers, sellers, products, services) {
-  const reviews = await Review.insertMany([
+async function createBookingMessages(bookings, admin, buyers) {
+  const bookingMap = new Map(bookings.map((booking) => [booking.transactionId, booking]));
+
+  await BookingMessage.insertMany([
     {
-      reviewerId: buyers[3]._id,
-      targetId: products[6]._id,
-      targetType: "product",
-      rating: 5,
-      comment: "Very useful for semester prep and exactly as described.",
+      bookingId: bookingMap.get('BKG_2026_005')._id,
+      senderId: buyers[0]._id,
+      message: 'Can we keep the project help session focused on report structure?',
+      createdAt: date('2026-04-10T15:00:00.000Z'),
+      updatedAt: date('2026-04-10T15:00:00.000Z'),
     },
     {
-      reviewerId: buyers[4]._id,
-      targetId: products[7]._id,
-      targetType: "product",
+      bookingId: bookingMap.get('BKG_2026_005')._id,
+      senderId: admin._id,
+      message: 'Yes, the session plan is updated and ready for that.',
+      createdAt: date('2026-04-10T15:10:00.000Z'),
+      updatedAt: date('2026-04-10T15:10:00.000Z'),
+    },
+    {
+      bookingId: bookingMap.get('BKG_2026_006')._id,
+      senderId: buyers[1]._id,
+      message: 'Please share the GitHub repo checklist before the coding help call.',
+      createdAt: date('2026-04-11T14:00:00.000Z'),
+      updatedAt: date('2026-04-11T14:00:00.000Z'),
+    },
+    {
+      bookingId: bookingMap.get('BKG_2026_006')._id,
+      senderId: admin._id,
+      message: 'Checklist shared. We will review setup, bugs, and deployment flow.',
+      createdAt: date('2026-04-11T14:05:00.000Z'),
+      updatedAt: date('2026-04-11T14:05:00.000Z'),
+    },
+  ]);
+}
+
+async function createReviews(buyers, products, services) {
+  const productMap = new Map(products.map((product) => [product.title, product]));
+  const serviceMap = new Map(services.map((service) => [service.title, service]));
+
+  await Review.insertMany([
+    {
+      reviewerId: buyers[0]._id,
+      targetId: productMap.get('Digital Clamp Meter')._id,
+      targetType: 'product',
+      rating: 5,
+      comment: 'Accurate readings and clean packaging.',
+    },
+    {
+      reviewerId: buyers[1]._id,
+      targetId: productMap.get('Three Phase Contactor')._id,
+      targetType: 'product',
       rating: 4,
-      comment: "Worked well in lab and condition was almost new.",
+      comment: 'Worked well in the lab setup and arrived quickly.',
     },
     {
       reviewerId: buyers[2]._id,
-      targetId: products[2]._id,
-      targetType: "product",
+      targetId: productMap.get('Sensor Interface Shield')._id,
+      targetType: 'product',
       rating: 5,
-      comment: "Hoodie quality was amazing and delivery was quick.",
-    },
-    {
-      reviewerId: buyers[2]._id,
-      targetId: services[1]._id,
-      targetType: "service",
-      rating: 5,
-      comment: "Resume and poster designs were polished and delivered on time.",
+      comment: 'Perfect for interfacing modules without extra wiring hassle.',
     },
     {
       reviewerId: buyers[3]._id,
-      targetId: services[3]._id,
-      targetType: "service",
+      targetId: productMap.get('Gear Coupling Set')._id,
+      targetType: 'product',
       rating: 4,
-      comment: "Helpful edits with clear feedback on how to improve the draft.",
+      comment: 'Solid finish and fit for our mechanical demo.',
     },
     {
-      reviewerId: buyers[3]._id,
-      targetId: sellers[2]._id,
-      targetType: "seller",
+      reviewerId: buyers[0]._id,
+      targetId: serviceMap.get('Project Help')._id,
+      targetType: 'service',
       rating: 5,
-      comment: "Riya was responsive and easy to coordinate with.",
+      comment: 'The guidance made the project presentation much sharper.',
+    },
+    {
+      reviewerId: buyers[1]._id,
+      targetId: serviceMap.get('PCB Design')._id,
+      targetType: 'service',
+      rating: 5,
+      comment: 'Great design walkthrough and production-ready outputs.',
     },
     {
       reviewerId: buyers[2]._id,
-      targetId: sellers[1]._id,
-      targetType: "seller",
+      targetId: serviceMap.get('3D Printing')._id,
+      targetType: 'service',
       rating: 4,
-      comment: "Good communication and quick turnaround overall.",
+      comment: 'Good print quality and clear material suggestions.',
+    },
+    {
+      reviewerId: buyers[3]._id,
+      targetId: serviceMap.get('Lab Assistance')._id,
+      targetType: 'service',
+      rating: 4,
+      comment: 'Helpful session and better clarity before submission.',
     },
   ]);
 
   await Promise.all([
-    refreshProductRating(products[2]._id),
-    refreshProductRating(products[6]._id),
-    refreshProductRating(products[7]._id),
-    refreshServiceRating(services[1]._id),
-    refreshServiceRating(services[3]._id),
+    refreshProductRating(productMap.get('Digital Clamp Meter')._id),
+    refreshProductRating(productMap.get('Three Phase Contactor')._id),
+    refreshProductRating(productMap.get('Sensor Interface Shield')._id),
+    refreshProductRating(productMap.get('Gear Coupling Set')._id),
+    refreshServiceRating(serviceMap.get('Project Help')._id),
+    refreshServiceRating(serviceMap.get('PCB Design')._id),
+    refreshServiceRating(serviceMap.get('3D Printing')._id),
+    refreshServiceRating(serviceMap.get('Lab Assistance')._id),
   ]);
-
-  return reviews;
 }
 
-async function createSupportTickets(buyers, sellers) {
-  return SupportTicket.insertMany([
+async function createSupportTickets(buyers, suppliers) {
+  await SupportTicket.insertMany([
     {
       raisedBy: buyers[0]._id,
-      subject: "Order delivery timing",
-      description:
-        "Need clarification on when order TXN_1712210001 will be confirmed.",
-      status: "open",
+      subject: 'Need invoice for delivered order',
+      description: 'Please share the invoice copy for order ORD_2026_001.',
+      status: 'open',
+      createdAt: date('2026-04-09T09:00:00.000Z'),
+      updatedAt: date('2026-04-09T09:00:00.000Z'),
     },
     {
-      raisedBy: buyers[1]._id,
-      subject: "Cancelled booking refund",
-      description:
-        "Wanted to confirm if the cancelled tutoring booking will reflect in history.",
-      status: "in-progress",
+      raisedBy: buyers[2]._id,
+      subject: 'Confirmed booking reschedule question',
+      description: 'Can my confirmed service booking be moved to the next day?',
+      status: 'in-progress',
+      adminNote: 'Admin is coordinating a revised slot.',
+      createdAt: date('2026-04-11T10:00:00.000Z'),
+      updatedAt: date('2026-04-11T12:00:00.000Z'),
     },
     {
-      raisedBy: sellers[0]._id,
-      subject: "Seller payout visibility",
-      description: "Need a clearer revenue breakdown for this month.",
-      status: "resolved",
-      adminNote:
-        "Revenue chart and order detail links were shared with seller.",
-    },
-    {
-      raisedBy: sellers[1]._id,
-      subject: "Listing approval time",
-      description: "How long does service moderation usually take after edits?",
-      status: "open",
-    },
-    {
-      raisedBy: buyers[3]._id,
-      subject: "Review visibility",
-      description: "My recent review is not visible yet on the seller page.",
-      status: "closed",
-      adminNote: "Issue resolved after cache refresh.",
+      raisedBy: suppliers[2]._id,
+      subject: 'Pending payout follow-up',
+      description: 'Please review the supplier payment request raised for April.',
+      status: 'open',
+      createdAt: date('2026-04-11T08:10:00.000Z'),
+      updatedAt: date('2026-04-11T08:10:00.000Z'),
     },
   ]);
 }
 
-async function createCommissions(orders, bookings, sellers) {
-  const commissions = [];
+async function createSupplierPayments(suppliers) {
+  const supplierOneCredits = await SupplierLedger.find({
+    supplierId: suppliers[0]._id,
+    type: 'credit',
+    status: 'pending',
+  }).sort({ createdAt: 1 });
+  const supplierTwoCredits = await SupplierLedger.find({
+    supplierId: suppliers[1]._id,
+    type: 'credit',
+    status: 'pending',
+  }).sort({ createdAt: 1 });
 
-  // Create commissions for paid orders
-  orders.forEach((order) => {
-    if (order.paymentStatus === "paid") {
-      commissions.push({
-        sellerId: order.sellerId,
-        orderId: order._id,
-        type: "order",
-        orderAmount: order.totalAmount,
-        platformFee: order.platformFee,
-        sellerPayableAmount: order.totalAmount,
-        paymentStatus: order.paymentMethod === "cod" ? "pending" : "pending",
-        notes: `Commission for order ${order.transactionId}`,
-      });
-    }
-  });
+  const supplierOneAmount = supplierOneCredits
+    .slice(0, 2)
+    .reduce((sum, credit) => sum + Number(credit.amount || 0), 0);
+  const supplierTwoAmount = supplierTwoCredits
+    .slice(0, 2)
+    .reduce((sum, credit) => sum + Number(credit.amount || 0), 0);
 
-  // Create commissions for paid bookings
-  bookings.forEach((booking) => {
-    if (booking.paymentStatus === "paid") {
-      commissions.push({
-        sellerId: booking.sellerId,
-        bookingId: booking._id,
-        type: "booking",
-        orderAmount: booking.totalAmount,
-        platformFee: booking.platformFee,
-        sellerPayableAmount: booking.totalAmount,
-        paymentStatus: "pending",
-        notes: `Commission for booking ${booking.transactionId}`,
-      });
-    }
-  });
-
-  // Mark some older commissions as paid
-  if (commissions.length > 3) {
-    commissions[0].paymentStatus = "paid";
-    commissions[0].paidAt = new Date("2026-03-01T10:00:00.000Z");
-    commissions[0].paymentReference = "PAYOUT_20260301_001";
-
-    commissions[1].paymentStatus = "paid";
-    commissions[1].paidAt = new Date("2026-03-15T14:30:00.000Z");
-    commissions[1].paymentReference = "PAYOUT_20260315_001";
+  if (supplierOneAmount > 0) {
+    await createSupplierPaymentEntry({
+      supplierId: suppliers[0]._id,
+      amount: supplierOneAmount,
+      method: 'bank-transfer',
+      reference: 'SUP-PAY-2026-001',
+      notes: 'Seeded payout for supplier one.',
+    });
   }
 
-  return SellerCommission.insertMany(commissions);
-}
-
-async function createSales(orders, bookings) {
-  const salesRecords = [];
-
-  // Create sales records for delivered orders
-  orders.forEach((order) => {
-    if (order.orderStatus === "delivered") {
-      salesRecords.push({
-        sellerId: order.sellerId,
-        orderId: order._id,
-        type: "product",
-        productId: order.items[0]?.productId,
-        title: `Order ${order.transactionId}`,
-        amount: order.totalAmount,
-        platformFee: order.platformFee,
-        sellerEarns: order.totalAmount - order.platformFee,
-        completedAt: order.updatedAt,
-      });
-    }
-  });
-
-  // Create sales records for completed bookings
-  bookings.forEach((booking) => {
-    if (booking.bookingStatus === "completed") {
-      salesRecords.push({
-        sellerId: booking.sellerId,
-        bookingId: booking._id,
-        type: "service",
-        serviceId: booking.serviceId,
-        title: booking.serviceTitle,
-        amount: booking.totalAmount,
-        platformFee: booking.platformFee,
-        sellerEarns: booking.totalAmount - booking.platformFee,
-        completedAt: booking.updatedAt,
-      });
-    }
-  });
-
-  if (salesRecords.length > 0) {
-    return Sales.insertMany(salesRecords);
+  if (supplierTwoAmount > 0) {
+    await createSupplierPaymentEntry({
+      supplierId: suppliers[1]._id,
+      amount: supplierTwoAmount,
+      method: 'upi',
+      reference: 'SUP-PAY-2026-002',
+      notes: 'Seeded payout for supplier two.',
+    });
   }
-  return [];
 }
 
 async function seed() {
   await connectDatabase();
   await resetDatabase();
 
-  const { admin, buyers, sellers } = await createUsers();
-  await createCarts([admin, ...buyers, ...sellers]);
-  await createSellerProfiles(sellers);
-  const products = await createProducts(sellers);
-  const services = await createServices(sellers);
-  const orders = await createOrders(buyers, sellers, products);
-  const bookings = await createBookings(buyers, sellers, services);
-  await createReviews(buyers, sellers, products, services);
-  await createSupportTickets(buyers, sellers);
-  await createCommissions(orders, bookings, sellers);
-  await createSales(orders, bookings);
+  const { admin, buyers, suppliers } = await createUsers();
+  await createCarts([admin, ...buyers, ...suppliers]);
+  await createSupplierProfiles(suppliers);
+  await createCoupons(admin);
+  const services = await createServices();
+  const products = await createProducts(admin, suppliers);
+  const orders = await createOrders(buyers, products);
+  await syncOrderLedger(orders);
+  await applySeededProductInventory(await Product.find({}), orders);
+  const bookings = await createBookings(buyers, services);
+  await createBookingMessages(bookings, admin, buyers);
+  await createReviews(buyers, await Product.find({}), await Service.find({}));
+  await createSupportTickets(buyers, suppliers);
+  await createSupplierPayments(suppliers);
 
   if (env.enableBackendLogs) {
-    console.log("CampusConnect seed complete.");
-    console.log("Admin login: admin@campusconnect.com / Admin@123");
-    console.log("Buyer login: rahul@campusconnect.com / Buyer@123");
-    console.log("Seller login: priya@campusconnect.com / Seller@123");
+    console.log('CampusConnect supplier platform seed complete.');
+    console.log('Admin login: admin@campusconnect.com / Admin@123');
+    console.log('Buyer login: buyer1@campusconnect.com / Buyer@123');
+    console.log('Supplier login: supplier1@campusconnect.com / Supplier@123');
   }
 }
 
 seed()
   .catch((error) => {
     if (env.enableBackendLogs) {
-      console.error("Seed failed:", error);
+      console.error('Seed failed:', error);
     }
     process.exitCode = 1;
   })

@@ -15,7 +15,7 @@ function average(numbers) {
 
 function buildCustomerRecord(customer, noteEntries = []) {
   const status = customer.isActive === false ? 'Inactive' : 'Active';
-  const roleLabel = customer.role === 'seller' ? 'Seller' : 'Buyer';
+  const roleLabel = customer.role === 'supplier' ? 'Supplier' : 'Buyer';
 
   return {
     id: customer.id,
@@ -93,57 +93,57 @@ export function ERPCRMProvider({ children }) {
   const [activeModule, setActiveModule] = useState('erp');
   const [localNotes, setLocalNotes] = useState({});
 
-  const sellerCustomersQuery = useQuery({
-    queryKey: ['seller', 'crm', 'customers'],
-    queryFn: api.seller.customers,
-    enabled: Boolean(currentUser?.role === 'seller' && currentUser?.sellerStatus === 'approved'),
+  const supplierCustomersQuery = useQuery({
+    queryKey: ['supplier', 'crm', 'customers'],
+    queryFn: api.supplier.customers,
+    enabled: Boolean(currentUser?.role === 'supplier' && currentUser?.supplierStatus === 'approved'),
     retry: false,
   });
 
-  const sellerOverviewQuery = useQuery({
-    queryKey: ['seller', 'overview'],
-    queryFn: api.seller.overview,
-    enabled: Boolean(currentUser?.role === 'seller' && currentUser?.sellerStatus === 'approved'),
+  const supplierOverviewQuery = useQuery({
+    queryKey: ['supplier', 'overview'],
+    queryFn: api.supplier.overview,
+    enabled: Boolean(currentUser?.role === 'supplier' && currentUser?.supplierStatus === 'approved'),
     retry: false,
   });
 
-  const sellerRevenueChartQuery = useQuery({
-    queryKey: ['seller', 'revenue-chart'],
-    queryFn: api.seller.revenueChart,
-    enabled: Boolean(currentUser?.role === 'seller' && currentUser?.sellerStatus === 'approved'),
+  const supplierRevenueChartQuery = useQuery({
+    queryKey: ['supplier', 'revenue-chart'],
+    queryFn: api.supplier.revenueChart,
+    enabled: Boolean(currentUser?.role === 'supplier' && currentUser?.supplierStatus === 'approved'),
     retry: false,
   });
 
-  const sellerOrderMetricsQuery = useQuery({
-    queryKey: ['seller', 'order-metrics'],
-    queryFn: api.seller.orderMetrics,
-    enabled: Boolean(currentUser?.role === 'seller' && currentUser?.sellerStatus === 'approved'),
+  const supplierOrderMetricsQuery = useQuery({
+    queryKey: ['supplier', 'order-metrics'],
+    queryFn: api.supplier.orderMetrics,
+    enabled: Boolean(currentUser?.role === 'supplier' && currentUser?.supplierStatus === 'approved'),
     retry: false,
   });
 
-  const sellerCategorySalesQuery = useQuery({
-    queryKey: ['seller', 'category-sales'],
-    queryFn: api.seller.categorySales,
-    enabled: Boolean(currentUser?.role === 'seller' && currentUser?.sellerStatus === 'approved'),
+  const supplierCategorySalesQuery = useQuery({
+    queryKey: ['supplier', 'category-sales'],
+    queryFn: api.supplier.categorySales,
+    enabled: Boolean(currentUser?.role === 'supplier' && currentUser?.supplierStatus === 'approved'),
     retry: false,
   });
 
-  const sellerTopProductsQuery = useQuery({
-    queryKey: ['seller', 'top-products'],
-    queryFn: api.seller.topProducts,
-    enabled: Boolean(currentUser?.role === 'seller' && currentUser?.sellerStatus === 'approved'),
+  const supplierTopProductsQuery = useQuery({
+    queryKey: ['supplier', 'top-products'],
+    queryFn: api.supplier.topProducts,
+    enabled: Boolean(currentUser?.role === 'supplier' && currentUser?.supplierStatus === 'approved'),
     retry: false,
   });
 
   const adminOverviewQuery = useQuery({
     queryKey: ['admin', 'overview'],
-    queryFn: api.admin.overview,
+    queryFn: api.admin.dashboardOverview,
     enabled: Boolean(currentUser?.role === 'admin'),
   });
 
   const adminPendingSellersQuery = useQuery({
     queryKey: ['admin', 'pending-sellers'],
-    queryFn: () => api.admin.sellersPending({ limit: 100 }),
+    queryFn: () => api.admin.supplierApplications({ limit: 100 }),
     enabled: Boolean(currentUser?.role === 'admin'),
   });
 
@@ -167,37 +167,37 @@ export function ERPCRMProvider({ children }) {
 
   const adminErpOverviewQuery = useQuery({
     queryKey: ['admin', 'erp-overview'],
-    queryFn: api.admin.erpOverview,
+    queryFn: api.admin.analytics,
     enabled: Boolean(currentUser?.role === 'admin'),
   });
 
   const adminTicketsQuery = useQuery({
     queryKey: ['admin', 'tickets'],
-    queryFn: () => api.admin.erpTickets({ limit: 100 }),
+    queryFn: () => api.admin.supportTickets({ limit: 100 }),
     enabled: Boolean(currentUser?.role === 'admin'),
   });
 
   const adminCrmCustomersQuery = useQuery({
     queryKey: ['admin', 'crm-customers'],
-    queryFn: api.admin.crmCustomers,
+    queryFn: api.admin.users,
     enabled: Boolean(currentUser?.role === 'admin'),
   });
 
   const adminActivityQuery = useQuery({
     queryKey: ['admin', 'activity'],
-    queryFn: api.admin.crmActivity,
+    queryFn: api.admin.dashboardOverview, // Activity is usually in overview
     enabled: Boolean(currentUser?.role === 'admin'),
   });
 
   const adminRevenueTrendQuery = useQuery({
     queryKey: ['admin', 'revenue-trend'],
-    queryFn: api.admin.revenueTrend,
+    queryFn: api.admin.revenueChart,
     enabled: Boolean(currentUser?.role === 'admin'),
   });
 
   const adminTopSellersQuery = useQuery({
     queryKey: ['admin', 'top-sellers'],
-    queryFn: api.admin.topSellers,
+    queryFn: api.admin.analytics, // Top sellers are in analytics
     enabled: Boolean(currentUser?.role === 'admin'),
   });
 
@@ -209,13 +209,13 @@ export function ERPCRMProvider({ children }) {
 
   const adminUserGrowthQuery = useQuery({
     queryKey: ['admin', 'user-growth'],
-    queryFn: api.admin.userGrowth,
+    queryFn: api.admin.revenueChart, // userGrowth usually in chart data
     enabled: Boolean(currentUser?.role === 'admin'),
   });
 
   const myTicketsQuery = useQuery({
     queryKey: ['tickets', 'mine'],
-    queryFn: () => api.tickets.mine({ limit: 100 }),
+    queryFn: () => api.support.listTickets({ limit: 100 }),
     enabled: Boolean(currentUser && currentUser.role !== 'admin'),
   });
 
@@ -239,7 +239,7 @@ export function ERPCRMProvider({ children }) {
 
   const ticketMutation = useMutation({
     mutationFn: ({ ticketId, status }) =>
-      api.admin.resolveTicket(ticketId, {
+      api.admin.updateSupportTicket(ticketId, {
         status: status.toLowerCase(),
         adminNote: '',
       }),
@@ -259,7 +259,7 @@ export function ERPCRMProvider({ children }) {
   const rawCustomers =
     currentUser?.role === 'admin'
       ? adminCrmCustomersQuery.data?.data?.customers || []
-      : sellerCustomersQuery.data?.data?.customers || [];
+      : supplierCustomersQuery.data?.data?.customers || [];
 
   const customers = useMemo(
     () =>
@@ -304,27 +304,27 @@ export function ERPCRMProvider({ children }) {
             trend: 'up',
           })) || [],
         topSellers:
-          adminTopSellersQuery.data?.data?.sellers?.map((seller) => ({
-            name: seller.sellerName,
-            totalSales: seller.orderCount,
+          adminTopSellersQuery.data?.data?.supplierPayables?.map((seller) => ({
+            name: seller.name,
+            totalSales: seller.earned,
             listingsCount: 0,
             rating: 0,
-            revenue: seller.revenue,
+            revenue: seller.earned,
           })) || [],
       };
     }
 
     const monthlySales = buildMonthlySales(
-      sellerRevenueChartQuery.data?.data?.chart ||
-        sellerOverviewQuery.data?.data?.overview?.revenueChart ||
+      supplierRevenueChartQuery.data?.data?.chart ||
+        supplierOverviewQuery.data?.data?.overview?.revenueChart ||
         [],
     );
     return {
       monthlySales,
-      categorySales: buildCategorySales(sellerCategorySalesQuery.data?.data?.categories || []),
+      categorySales: buildCategorySales(supplierCategorySalesQuery.data?.data?.categories || []),
       weeklyRevenue: monthlySales.slice(-7).map((item) => item.revenue || 0),
       topProducts:
-        sellerTopProductsQuery.data?.data?.products?.map((product) => ({
+        supplierTopProductsQuery.data?.data?.products?.map((product) => ({
           title: product.title,
           category: product.category,
           soldCount: product.unitsSold,
@@ -335,10 +335,10 @@ export function ERPCRMProvider({ children }) {
         ? [
             {
               name: currentUser.name,
-              totalSales: sellerOrderMetricsQuery.data?.data?.metrics?.delivered || 0,
-              listingsCount: sellerOverviewQuery.data?.data?.overview?.activeListings || 0,
-              rating: sellerOverviewQuery.data?.data?.overview?.averageRating || 0,
-              revenue: sellerOverviewQuery.data?.data?.overview?.totalRevenue || 0,
+              totalSales: supplierOrderMetricsQuery.data?.data?.metrics?.delivered || 0,
+              listingsCount: supplierOverviewQuery.data?.data?.overview?.activeListings || 0,
+              rating: supplierOverviewQuery.data?.data?.overview?.averageRating || 0,
+              revenue: supplierOverviewQuery.data?.data?.overview?.totalRevenue || 0,
             },
           ]
         : [],
@@ -348,11 +348,11 @@ export function ERPCRMProvider({ children }) {
     adminRevenueTrendQuery.data,
     adminTopProductsQuery.data,
     adminTopSellersQuery.data,
-    sellerRevenueChartQuery.data,
-    sellerCategorySalesQuery.data,
-    sellerTopProductsQuery.data,
-    sellerOrderMetricsQuery.data,
-    sellerOverviewQuery.data,
+    supplierRevenueChartQuery.data,
+    supplierCategorySalesQuery.data,
+    supplierTopProductsQuery.data,
+    supplierOrderMetricsQuery.data,
+    supplierOverviewQuery.data,
   ]);
 
   const erpResources = useMemo(() => {
@@ -409,7 +409,7 @@ export function ERPCRMProvider({ children }) {
           ...pendingProducts.map((item) => ({
             id: item._id,
             title: item.title,
-            seller: item.sellerId?.name || 'Seller',
+            seller: item.supplier?.name || 'Supplier',
             category: item.category,
             submitted: item.createdAt,
             kind: 'product',
@@ -417,7 +417,7 @@ export function ERPCRMProvider({ children }) {
           ...pendingServices.map((item) => ({
             id: item._id,
             title: item.title,
-            seller: item.sellerId?.name || 'Seller',
+            seller: item.supplier?.name || 'Supplier',
             category: item.category,
             submitted: item.createdAt,
             kind: 'service',
@@ -426,8 +426,8 @@ export function ERPCRMProvider({ children }) {
       };
     }
 
-    const overview = sellerOverviewQuery.data?.data?.overview || {};
-    const metrics = sellerOrderMetricsQuery.data?.data?.metrics || {};
+    const overview = supplierOverviewQuery.data?.data?.overview || {};
+    const metrics = supplierOrderMetricsQuery.data?.data?.metrics || {};
     const myTickets = myTicketsQuery.data?.data?.tickets || [];
 
     return {
@@ -474,8 +474,8 @@ export function ERPCRMProvider({ children }) {
     adminTicketsQuery.data,
     pendingProducts,
     pendingServices,
-    sellerOverviewQuery.data,
-    sellerOrderMetricsQuery.data,
+    supplierOverviewQuery.data,
+    supplierOrderMetricsQuery.data,
     myTicketsQuery.data,
   ]);
 

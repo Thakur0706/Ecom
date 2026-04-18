@@ -1,38 +1,77 @@
-import mongoose from "mongoose";
-import { ORDER_STATUS, PAYMENT_STATUS } from "../constants/enums.js";
+import mongoose from 'mongoose';
+import { ORDER_STATUS, PAYMENT_STATUS } from '../constants/enums.js';
 
 const orderItemSchema = new mongoose.Schema(
   {
     productId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Product",
+      ref: 'Product',
       required: true,
+    },
+    supplierId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
     },
     title: {
       type: String,
       required: true,
+      trim: true,
     },
     category: {
       type: String,
-      default: "",
+      default: '',
+      trim: true,
     },
     imageUrl: {
       type: String,
-      default: "",
+      default: '',
+      trim: true,
     },
     quantity: {
       type: Number,
       required: true,
       min: 1,
     },
-    price: {
+    quotedPrice: {
       type: Number,
       required: true,
       min: 0,
     },
+    sellingPrice: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    discountPercent: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 90,
+    },
+    finalUnitPrice: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    lineTotal: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    supplierPayable: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    supplierLedgerEntryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'SupplierLedger',
+      default: null,
+    },
   },
   {
-    _id: false,
+    _id: true,
   },
 );
 
@@ -42,6 +81,11 @@ const statusTimelineSchema = new mongoose.Schema(
       type: String,
       enum: ORDER_STATUS,
       required: true,
+    },
+    note: {
+      type: String,
+      default: '',
+      trim: true,
     },
     timestamp: {
       type: Date,
@@ -57,72 +101,59 @@ const orderSchema = new mongoose.Schema(
   {
     buyerId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      ref: 'User',
       required: true,
-    },
-    sellerId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
+      index: true,
     },
     items: {
       type: [orderItemSchema],
       required: true,
+      default: [],
+    },
+    subtotal: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    couponCode: {
+      type: String,
+      default: '',
+      trim: true,
+      uppercase: true,
+    },
+    couponDiscount: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
     totalAmount: {
       type: Number,
       required: true,
       min: 0,
     },
-    platformFee: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
-    finalAmount: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
-    originalAmount: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
-    discountAmount: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
-    couponCode: {
-      type: String,
-      default: "",
-      trim: true,
-      uppercase: true,
-    },
     paymentStatus: {
       type: String,
       enum: PAYMENT_STATUS,
-      default: "paid",
+      default: 'paid',
     },
     paymentProvider: {
       type: String,
-      default: "manual",
+      default: 'manual',
       trim: true,
     },
     paymentMethod: {
       type: String,
-      default: "card",
+      default: 'card',
       trim: true,
     },
     paymentReference: {
       type: String,
-      default: "",
+      default: '',
       trim: true,
     },
     gatewayOrderId: {
       type: String,
-      default: "",
+      default: '',
       trim: true,
     },
     transactionId: {
@@ -133,16 +164,25 @@ const orderSchema = new mongoose.Schema(
     orderStatus: {
       type: String,
       enum: ORDER_STATUS,
-      default: "placed",
+      default: 'placed',
+      index: true,
     },
     statusTimeline: {
       type: [statusTimelineSchema],
-      default: () => [{ status: "placed", timestamp: new Date() }],
+      default: () => [{ status: 'placed', timestamp: new Date() }],
     },
     deliveryAddress: {
       type: String,
       required: true,
       trim: true,
+    },
+    isChatOpen: {
+      type: Boolean,
+      default: true,
+    },
+    supplierAcknowledged: {
+      type: Boolean,
+      default: false,
     },
   },
   {
@@ -150,4 +190,7 @@ const orderSchema = new mongoose.Schema(
   },
 );
 
-export const Order = mongoose.model("Order", orderSchema);
+orderSchema.index({ buyerId: 1, createdAt: -1 });
+orderSchema.index({ orderStatus: 1, createdAt: -1 });
+
+export const Order = mongoose.model('Order', orderSchema);

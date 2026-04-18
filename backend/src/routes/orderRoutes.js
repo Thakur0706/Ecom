@@ -3,55 +3,32 @@ import {
   cancelOrder,
   createCheckoutSession,
   createOrder,
-  getMyPurchases,
-  getMySales,
   getOrderById,
-  updateOrderStatus,
+  getOrders,
+  getOrderMessages,
+  sendOrderMessage,
   verifyCheckoutPayment,
 } from '../controllers/orderController.js';
-import { authenticate, authorizeRoles, requireApprovedSeller } from '../middleware/auth.js';
+import { authenticate, authorizeRoles } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { asyncHandler } from '../utils/http.js';
 import {
   orderCheckoutSchema,
   orderCreateSchema,
   orderPaymentVerificationSchema,
-  orderStatusSchema,
 } from '../schemas/index.js';
+import { asyncHandler } from '../utils/http.js';
 
 const router = Router();
 
-router.post(
-  '/checkout-session',
-  authenticate,
-  authorizeRoles('buyer', 'seller'),
-  validate(orderCheckoutSchema),
-  asyncHandler(createCheckoutSession),
-);
-router.post(
-  '/verify-payment',
-  authenticate,
-  authorizeRoles('buyer', 'seller'),
-  validate(orderPaymentVerificationSchema),
-  asyncHandler(verifyCheckoutPayment),
-);
-router.post(
-  '/',
-  authenticate,
-  authorizeRoles('buyer', 'seller'),
-  validate(orderCreateSchema),
-  asyncHandler(createOrder),
-);
-router.get('/my-purchases', authenticate, authorizeRoles('buyer', 'seller'), asyncHandler(getMyPurchases));
-router.get('/my-sales', authenticate, requireApprovedSeller, asyncHandler(getMySales));
-router.get('/:id', authenticate, asyncHandler(getOrderById));
-router.patch(
-  '/:id/status',
-  authenticate,
-  requireApprovedSeller,
-  validate(orderStatusSchema),
-  asyncHandler(updateOrderStatus),
-);
-router.patch('/:id/cancel', authenticate, authorizeRoles('buyer', 'seller'), asyncHandler(cancelOrder));
+router.use(authenticate, authorizeRoles('buyer', 'supplier', 'admin'));
+
+router.post('/checkout-session', validate(orderCheckoutSchema), asyncHandler(createCheckoutSession));
+router.post('/verify-payment', validate(orderPaymentVerificationSchema), asyncHandler(verifyCheckoutPayment));
+router.post('/', validate(orderCreateSchema), asyncHandler(createOrder));
+router.get('/', asyncHandler(getOrders));
+router.get('/:id', asyncHandler(getOrderById));
+router.post('/:id/cancel', asyncHandler(cancelOrder));
+router.get('/:id/messages', asyncHandler(getOrderMessages));
+router.post('/:id/messages', asyncHandler(sendOrderMessage));
 
 export default router;

@@ -61,9 +61,9 @@ export function formatProduct(product) {
     image: imageWithFallback(product.imageUrl),
     imageUrl: imageWithFallback(product.imageUrl),
     condition: sentenceCase(product.condition),
-    seller: product.sellerId?.name || 'Campus Seller',
-    sellerId: product.sellerId?._id || product.sellerId,
-    sellerProfilePictureUrl: product.sellerId?.profilePictureUrl || '',
+    seller: product.supplier?.name || 'Campus Seller',
+    sellerId: product.supplier?.id || product.supplier?._id || product.supplier,
+    sellerProfilePictureUrl: product.supplier?.profilePictureUrl || '',
     rating: product.averageRating || 0,
     coupon: formatCoupon(product.coupon),
     stock: product.stock,
@@ -87,8 +87,8 @@ export function formatService(service) {
     price: service.price,
     image: imageWithFallback(service.imageUrl),
     imageUrl: imageWithFallback(service.imageUrl),
-    provider: service.sellerId?.name || 'Campus Seller',
-    sellerId: service.sellerId?._id || service.sellerId,
+    provider: service.supplier?.name || 'Campus Seller',
+    sellerId: service.supplier?.id || service.supplier?._id || service.supplier,
     availability: service.availability,
     rating: service.averageRating || 0,
     coupon: formatCoupon(service.coupon),
@@ -117,6 +117,14 @@ export function formatOrder(order) {
   const items = order.items || [];
   const primaryItem = items[0] || {};
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+  
+  // Resiliently extract IDs (handle raw Mongoose and serialized JSON)
+  const orderId = order.id || order._id;
+  const buyerData = order.buyerId || order.buyer || {};
+  const buyerId = buyerData.id || buyerData._id || (typeof buyerData === 'string' ? buyerData : null);
+  const supplierData = order.supplierId || order.supplier || {};
+  const supplierId = supplierData.id || supplierData._id || (typeof supplierData === 'string' ? supplierData : null);
+
   const paymentMethod = order.paymentMethod || 'card';
   const paymentProvider = order.paymentProvider || 'manual';
   const paymentMethodLabel = PAYMENT_METHOD_LABELS[paymentMethod] || sentenceCase(paymentMethod);
@@ -129,15 +137,15 @@ export function formatOrder(order) {
         : paymentMethodLabel;
 
   return {
-    id: order._id,
-    buyerId: order.buyerId?._id || order.buyerId,
-    buyerName: order.buyerId?.name || 'Buyer',
-    buyerEmail: order.buyerId?.email || '',
-    sellerId: order.sellerId?._id || order.sellerId,
-    sellerName: order.sellerId?.name || 'Seller',
-    sellerEmail: order.sellerId?.email || '',
+    id: orderId,
+    buyerId: buyerId,
+    buyerName: buyerData.name || 'Buyer',
+    buyerEmail: buyerData.email || '',
+    supplierId: supplierId,
+    supplierName: supplierData.name || 'Supplier',
+    supplierEmail: supplierData.email || '',
     product: {
-      id: primaryItem.productId,
+      id: primaryItem.productId?.id || primaryItem.productId?._id || primaryItem.productId,
       title: items.length > 1 ? `${primaryItem.title} + ${items.length - 1} more` : primaryItem.title,
       category: primaryItem.category || 'General',
       image: imageWithFallback(primaryItem.imageUrl),
@@ -174,14 +182,18 @@ export function formatBooking(booking) {
     return null;
   }
 
+  const buyerValue = booking.buyer || booking.buyerId || {};
+  const sellerValue = booking.seller || booking.sellerId || {};
+  const serviceValue = booking.service || booking.serviceId || {};
+
   return {
-    id: booking._id,
-    buyerId: booking.buyerId?._id || booking.buyerId,
-    buyerName: booking.buyerId?.name || '',
-    sellerId: booking.sellerId?._id || booking.sellerId,
-    sellerName: booking.sellerId?.name || '',
-    serviceId: booking.serviceId?._id || booking.serviceId,
-    serviceTitle: booking.serviceId?.title || booking.serviceTitle || 'Service booking',
+    id: booking._id || booking.id,
+    buyerId: buyerValue._id || buyerValue.id || buyerValue,
+    buyerName: buyerValue.name || '',
+    supplierId: sellerValue?._id || sellerValue?.id || sellerValue,
+    supplierName: sellerValue?.name || 'Campus Admin',
+    serviceId: serviceValue?._id || serviceValue?.id || serviceValue,
+    serviceTitle: serviceValue.title || booking.serviceTitle || 'Service booking',
     totalAmount: booking.totalAmount,
     originalAmount: booking.originalAmount || booking.totalAmount,
     discountAmount: booking.discountAmount || 0,
@@ -195,7 +207,7 @@ export function formatBooking(booking) {
     duration: booking.duration,
     sellerConfirmedAt: booking.sellerConfirmedAt,
     paidAt: booking.paidAt,
-    chatEnabled: booking.paymentStatus === 'paid',
+    chatEnabled: booking.paymentStatus === 'paid' || booking.paymentStatus?.toLowerCase() === 'paid',
     createdAt: booking.createdAt,
     transactionId: booking.transactionId,
   };

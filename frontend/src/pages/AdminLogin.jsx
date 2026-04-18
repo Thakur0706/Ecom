@@ -17,8 +17,8 @@ function AdminLogin() {
         to={
           currentUser.role === "admin"
             ? "/admin/dashboard"
-            : currentUser.role === "seller"
-              ? "/seller/dashboard"
+            : currentUser.role === "supplier"
+              ? "/supplier/dashboard"
               : "/dashboard"
         }
         replace

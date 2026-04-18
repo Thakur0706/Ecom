@@ -2,79 +2,63 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import ServiceCard from '../components/ServiceCard';
 import { api } from '../lib/api';
-import { formatService } from '../lib/formatters';
-
-const categories = ['All', 'Tutoring', 'Design', 'Coding', 'Content Writing'];
 
 function ServiceMarketplace() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeCategory, setActiveCategory] = useState('All');
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState('rating');
 
   const servicesQuery = useQuery({
-    queryKey: ['services', { searchTerm, activeCategory }],
+    queryKey: ['services', { search, sort }],
     queryFn: () =>
       api.services.list({
         limit: 100,
-        search: searchTerm || undefined,
-        category: activeCategory === 'All' ? undefined : activeCategory,
+        search: search || undefined,
+        sort,
       }),
   });
 
-  const filteredServices = (servicesQuery.data?.data?.services || []).map(formatService);
+  const services = servicesQuery.data?.data?.services || [];
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-10">
-      <div className="rounded-[2rem] bg-white p-8 shadow-md">
+      <div className="rounded-[1.75rem] border border-slate-200 bg-white p-8 shadow-sm">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.25em] text-indigo-600">
-              Service Marketplace
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600">
+              Service marketplace
             </p>
-            <h1 className="mt-2 text-3xl font-bold text-slate-900">Hire talented students</h1>
-            <p className="mt-2 text-sm text-slate-500">{filteredServices.length} services available</p>
+            <h1 className="mt-2 text-3xl font-semibold text-slate-900">Book admin-managed services</h1>
+            <p className="mt-2 text-sm text-slate-500">
+              Find the right campus support package and book it directly from the platform.
+            </p>
           </div>
 
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-            placeholder="Search services by title"
-            className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-blue-500 lg:max-w-md"
-          />
-        </div>
-
-        <div className="mt-6 flex flex-wrap gap-3">
-          {categories.map((category) => (
-            <button
-              key={category}
-              type="button"
-              onClick={() => setActiveCategory(category)}
-              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                activeCategory === category
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
+          <div className="grid gap-3 md:grid-cols-2">
+            <input
+              type="text"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search services"
+              className="rounded-full border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-indigo-500"
+            />
+            <select
+              value={sort}
+              onChange={(event) => setSort(event.target.value)}
+              className="rounded-full border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-indigo-500"
             >
-              {category}
-            </button>
-          ))}
+              <option value="rating">Top rated</option>
+              <option value="price-asc">Price low to high</option>
+              <option value="price-desc">Price high to low</option>
+            </select>
+          </div>
         </div>
       </div>
 
-      {filteredServices.length > 0 ? (
-        <div className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {filteredServices.map((service) => (
-            <ServiceCard key={service.id} service={service} />
-          ))}
-        </div>
-      ) : (
-        <div className="mt-8 rounded-[2rem] bg-white px-6 py-16 text-center shadow-md">
-          <h2 className="text-2xl font-bold text-slate-900">No services found</h2>
-          <p className="mt-3 text-sm text-slate-500">
-            Try adjusting the search term or choosing another category.
-          </p>
-        </div>
-      )}
+      <div className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+        {services.map((service) => (
+          <ServiceCard key={service.id} service={service} />
+        ))}
+      </div>
     </div>
   );
 }

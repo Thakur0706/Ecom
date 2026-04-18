@@ -1,7 +1,6 @@
 import { Cart } from '../models/Cart.js';
-import { SellerProfile } from '../models/SellerProfile.js';
+import { SupplierProfile } from '../models/SupplierProfile.js';
 import { User } from '../models/User.js';
-import { ROLES } from '../constants/enums.js';
 import { AppError, sendResponse } from '../utils/http.js';
 import {
   compareRefreshToken,
@@ -10,7 +9,7 @@ import {
   hashRefreshToken,
   verifyRefreshToken,
 } from '../utils/tokens.js';
-import { serializeSellerProfile, serializeUser } from '../utils/serializers.js';
+import { serializeSupplierProfile, serializeUser } from '../utils/serializers.js';
 
 async function issueTokens(user) {
   const accessToken = generateAccessToken(user);
@@ -25,11 +24,11 @@ async function issueTokens(user) {
 }
 
 async function buildAuthPayload(user) {
-  const sellerProfile = await SellerProfile.findOne({ userId: user._id });
+  const supplierProfile = await SupplierProfile.findOne({ userId: user._id });
 
   return {
     user: serializeUser(user),
-    sellerProfile: serializeSellerProfile(sellerProfile),
+    supplierProfile: serializeSupplierProfile(supplierProfile),
   };
 }
 
@@ -43,46 +42,29 @@ export async function register(req, res) {
   const user = await User.create({
     ...req.body,
     email: req.body.email.toLowerCase(),
-    role: ROLES.BUYER,
   });
+
+  if (req.body.desiredRole === 'supplier' && req.body.sellerApplication) {
+    await SupplierProfile.create({
+      ...req.body.sellerApplication,
+      userId: user._id,
+      status: 'pending',
+    });
+  }
 
   await Cart.create({
     userId: user._id,
     items: [],
+    couponCode: '',
   });
-
-  let sellerProfile = null;
-
-  if (req.body.desiredRole === ROLES.SELLER) {
-    if (!req.body.sellerApplication) {
-      throw new AppError('Seller application details are required when registering as a seller.', 400);
-    }
-
-    sellerProfile = await SellerProfile.create({
-      ...req.body.sellerApplication,
-      fullName: req.body.sellerApplication.fullName || req.body.name,
-      userId: user._id,
-      status: 'pending',
-      rejectionReason: '',
-      approvedAt: null,
-    });
-  }
 
   const tokens = await issueTokens(user);
   const payload = await buildAuthPayload(user);
 
-  return sendResponse(
-    res,
-    201,
-    true,
-    req.body.desiredRole === ROLES.SELLER
-      ? 'Registration successful. Your seller application is pending admin approval.'
-      : 'Registration successful.',
-    {
+  return sendResponse(res, 201, true, 'Registration successful.', {
     ...payload,
     tokens,
-    },
-  );
+  });
 }
 
 export async function login(req, res) {
@@ -92,10 +74,6 @@ export async function login(req, res) {
 
   if (!user) {
     throw new AppError('Invalid email or password.', 401);
-  }
-
-  if (user.role === ROLES.ADMIN) {
-    throw new AppError('Admin accounts must use the admin login page.', 403);
   }
 
   if (!user.isActive) {
@@ -113,34 +91,6 @@ export async function login(req, res) {
 
   return sendResponse(res, 200, true, 'Login successful.', {
     ...payload,
-    tokens,
-  });
-}
-
-export async function adminLogin(req, res) {
-  const user = await User.findOne({ email: req.body.email.toLowerCase() }).select(
-    '+password +refreshTokenHash',
-  );
-
-  if (!user || user.role !== ROLES.ADMIN) {
-    throw new AppError('Admin account not found.', 401);
-  }
-
-  if (!user.isActive) {
-    throw new AppError('This admin account is deactivated.', 403);
-  }
-
-  const isMatch = await user.comparePassword(req.body.password);
-
-  if (!isMatch) {
-    throw new AppError('Invalid email or password.', 401);
-  }
-
-  const tokens = await issueTokens(user);
-
-  return sendResponse(res, 200, true, 'Admin login successful.', {
-    user: serializeUser(user),
-    sellerProfile: null,
     tokens,
   });
 }

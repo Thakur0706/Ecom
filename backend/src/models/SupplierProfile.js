@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
-import { SELLER_STATUS } from '../constants/enums.js';
+import { SUPPLIER_STATUS } from '../constants/enums.js';
 
-const sellerProfileSchema = new mongoose.Schema(
+const supplierProfileSchema = new mongoose.Schema(
   {
     userId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -14,19 +14,40 @@ const sellerProfileSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-    studentId: {
+    storeName: {
       type: String,
       required: true,
+      trim: true,
+    },
+    businessType: {
+      type: String,
+      enum: ['physical_shop', 'side_business', 'individual', 'freelance'],
+      default: 'individual',
+    },
+    businessAddress: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    businessDescription: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    isStudent: {
+      type: Boolean,
+      default: true,
+    },
+    studentId: {
+      type: String,
       trim: true,
     },
     collegeName: {
       type: String,
-      required: true,
       trim: true,
     },
     department: {
       type: String,
-      required: true,
       trim: true,
     },
     contactNumber: {
@@ -46,13 +67,12 @@ const sellerProfileSchema = new mongoose.Schema(
     },
     studentIdUrl: {
       type: String,
-      required: true,
       trim: true,
     },
     status: {
       type: String,
-      enum: Object.values(SELLER_STATUS),
-      default: SELLER_STATUS.PENDING,
+      enum: Object.values(SUPPLIER_STATUS),
+      default: SUPPLIER_STATUS.PENDING,
     },
     rejectionReason: {
       type: String,
@@ -63,10 +83,23 @@ const sellerProfileSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    paymentRequestRaised: {
+      type: Boolean,
+      default: false,
+    },
+    paymentRequestRaisedAt: {
+      type: Date,
+      default: null,
+    },
+    paymentRequestNote: {
+      type: String,
+      default: '',
+      trim: true,
+    },
   },
   {
     timestamps: true,
   },
 );
 
-export const SellerProfile = mongoose.model('SellerProfile', sellerProfileSchema);
+export const SupplierProfile = mongoose.model('SupplierProfile', supplierProfileSchema);

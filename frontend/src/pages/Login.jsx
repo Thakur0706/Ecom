@@ -17,8 +17,8 @@ function Login() {
         to={
           currentUser.role === 'admin'
             ? '/admin/dashboard'
-            : currentUser.role === 'seller'
-              ? '/seller/dashboard'
+            : currentUser.role === 'supplier'
+              ? '/supplier/dashboard'
               : '/dashboard'
         }
         replace
@@ -38,7 +38,14 @@ function Login() {
     try {
       const response = await login(formData);
       const nextRole = response?.data?.user?.role;
-      navigate(nextRole === 'seller' ? '/seller/dashboard' : '/dashboard');
+      
+      if (nextRole === 'admin') {
+        navigate('/admin/dashboard');
+      } else if (nextRole === 'supplier') {
+        navigate('/supplier/dashboard');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'Login failed.');
     }

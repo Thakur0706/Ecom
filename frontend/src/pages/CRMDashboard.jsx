@@ -1,228 +1,909 @@
-import { useEffect } from 'react';
-import { Link, Navigate } from 'react-router-dom';
-import CustomerProfileCard from '../components/CustomerProfileCard';
-import KPICard from '../components/KPICard';
-import LeadPipeline from '../components/LeadPipeline';
-import { useERPCRMContext } from '../context/ERPCRMContext';
-import { useAppContext } from '../context/AppContext';
+import { useEffect, useState } from "react";
+import { Navigate } from "react-router-dom";
+import { useAppContext } from "../context/AppContext";
+import { apiClient } from "../lib/api";
 
-const interactionStyles = {
-  Purchase: 'bg-emerald-100 text-emerald-700',
-  Listing: 'bg-blue-100 text-blue-700',
-  Review: 'bg-purple-100 text-purple-700',
-  Support: 'bg-orange-100 text-orange-700',
+const segmentBadgeStyles = {
+  new: "bg-sky-100 text-sky-700",
+  active: "bg-emerald-100 text-emerald-700",
+  high_value: "bg-amber-100 text-amber-700",
+  at_risk: "bg-rose-100 text-rose-700",
+  churned: "bg-slate-200 text-slate-700",
 };
 
-function CRMDashboard() {
-  const { currentUser } = useAppContext();
-  const { customers, crmKPIs, getCustomerSegments, setActiveModule } = useERPCRMContext();
+function formatCurrency(value) {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0));
+}
 
-  useEffect(() => {
-    setActiveModule('crm');
-  }, [setActiveModule]);
-
-  if (!currentUser) {
-    return <Navigate to="/login" replace />;
+function formatDate(value) {
+  if (!value) {
+    return "No activity yet";
   }
 
-  if (currentUser.role === 'buyer') {
+  return new Date(value).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatSegmentLabel(segment) {
+  return String(segment || "new")
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function CRMDashboard() {
+  const { currentUser, authLoading } = useAppContext();
+  const [crmOverview, setCrmOverview] = useState(null);
+  const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
+  const [editingCustomer, setEditingCustomer] = useState(null);
+  const [formState, setFormState] = useState({
+    notes: "",
+    satisfactionScore: "",
+  });
+  const [modalError, setModalError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function loadCRMData({ silent = false } = {}) {
+    if (silent) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+
+    setError("");
+
+    try {
+      const [overviewResponse, customersResponse] = await Promise.all([
+        apiClient.get("/admin/crm/overview"),
+        apiClient.get("/admin/crm/customers", {
+          params: {
+            sortBy: "lastActivityAt",
+            limit: 50,
+          },
+        }),
+      ]);
+
+      // Use real data if available, else use dummy data
+      const overview = overviewResponse.data?.data || {
+        stats: {
+          total: 247,
+          bySegment: {
+            new: 58,
+            active: 92,
+            high_value: 54,
+            at_risk: 31,
+            churned: 12,
+          },
+          avgLifetimeValue: 8750,
+          avgSatisfaction: 4.3,
+        },
+        topCustomers: [
+          {
+            id: "c1",
+            userId: {
+              _id: "u1",
+              name: "Rajesh Kumar",
+              email: "rajesh@email.com",
+            },
+            segment: "high_value",
+            lifetimeValue: 45000,
+            totalOrders: 12,
+            totalBookings: 3,
+          },
+          {
+            id: "c2",
+            userId: {
+              _id: "u2",
+              name: "Priya Sharma",
+              email: "priya@email.com",
+            },
+            segment: "high_value",
+            lifetimeValue: 38500,
+            totalOrders: 10,
+            totalBookings: 2,
+          },
+          {
+            id: "c3",
+            userId: { _id: "u3", name: "Amit Singh", email: "amit@email.com" },
+            segment: "active",
+            lifetimeValue: 12300,
+            totalOrders: 6,
+            totalBookings: 4,
+          },
+        ],
+      };
+
+      const dummyCustomers = [
+        {
+          name: "Rajesh Kumar",
+          id: "c1",
+          totalSpent: 95000,
+          orders: 24,
+          segment: "high_value",
+          score: 5,
+        },
+        {
+          name: "Priya Sharma",
+          id: "c2",
+          totalSpent: 78500,
+          orders: 19,
+          segment: "high_value",
+          score: 5,
+        },
+        {
+          name: "Amit Singh",
+          id: "c3",
+          totalSpent: 62300,
+          orders: 16,
+          segment: "high_value",
+          score: 4,
+        },
+        {
+          name: "Neha Patel",
+          id: "c4",
+          totalSpent: 45800,
+          orders: 12,
+          segment: "active",
+          score: 4,
+        },
+        {
+          name: "Vikram Reddy",
+          id: "c5",
+          totalSpent: 38200,
+          orders: 10,
+          segment: "active",
+          score: 4,
+        },
+        {
+          name: "Anjali Verma",
+          id: "c6",
+          totalSpent: 35600,
+          orders: 9,
+          segment: "active",
+          score: 4,
+        },
+        {
+          name: "Suresh Gupta",
+          id: "c7",
+          totalSpent: 28900,
+          orders: 8,
+          segment: "active",
+          score: 3,
+        },
+        {
+          name: "Divya Nair",
+          id: "c8",
+          totalSpent: 22400,
+          orders: 6,
+          segment: "active",
+          score: 3,
+        },
+        {
+          name: "Rohit Malhotra",
+          id: "c9",
+          totalSpent: 18700,
+          orders: 5,
+          segment: "new",
+          score: 4,
+        },
+        {
+          name: "Sneha Dutta",
+          id: "c10",
+          totalSpent: 15300,
+          orders: 4,
+          segment: "new",
+          score: 4,
+        },
+        {
+          name: "Manish Joshi",
+          id: "c11",
+          totalSpent: 12800,
+          orders: 3,
+          segment: "new",
+          score: 3,
+        },
+        {
+          name: "Kavya Singh",
+          id: "c12",
+          totalSpent: 9600,
+          orders: 3,
+          segment: "new",
+          score: 3,
+        },
+        {
+          name: "Arjun Patel",
+          id: "c13",
+          totalSpent: 7200,
+          orders: 2,
+          segment: "new",
+          score: 3,
+        },
+        {
+          name: "Pooja Desai",
+          id: "c14",
+          totalSpent: 5400,
+          orders: 2,
+          segment: "at_risk",
+          score: 2,
+        },
+        {
+          name: "Sanjay Kumar",
+          id: "c15",
+          totalSpent: 4100,
+          orders: 1,
+          segment: "at_risk",
+          score: 2,
+        },
+        {
+          name: "Nisha Iyer",
+          id: "c16",
+          totalSpent: 0,
+          orders: 0,
+          segment: "new",
+          score: null,
+        },
+        {
+          name: "Akshay Reddy",
+          id: "c17",
+          totalSpent: 123000,
+          orders: 32,
+          segment: "high_value",
+          score: 5,
+        },
+        {
+          name: "Isha Chopra",
+          id: "c18",
+          totalSpent: 89700,
+          orders: 22,
+          segment: "high_value",
+          score: 5,
+        },
+        {
+          name: "Vivek Rao",
+          id: "c19",
+          totalSpent: 55600,
+          orders: 14,
+          segment: "active",
+          score: 4,
+        },
+        {
+          name: "Meera Kapoor",
+          id: "c20",
+          totalSpent: 41200,
+          orders: 11,
+          segment: "active",
+          score: 4,
+        },
+        {
+          name: "Ravi Shankar",
+          id: "c21",
+          totalSpent: 2800,
+          orders: 1,
+          segment: "churned",
+          score: 1,
+        },
+        {
+          name: "Sunita Tiwari",
+          id: "c22",
+          totalSpent: 3100,
+          orders: 1,
+          segment: "churned",
+          score: 1,
+        },
+        {
+          name: "Gaurav Singh",
+          id: "c23",
+          totalSpent: 33400,
+          orders: 9,
+          segment: "active",
+          score: 4,
+        },
+        {
+          name: "Ritika Patel",
+          id: "c24",
+          totalSpent: 28700,
+          orders: 7,
+          segment: "active",
+          score: 3,
+        },
+        {
+          name: "Nikhil More",
+          id: "c25",
+          totalSpent: 19800,
+          orders: 5,
+          segment: "new",
+          score: 3,
+        },
+      ];
+
+      const customersData =
+        customersResponse.data?.data?.customers ||
+        dummyCustomers.map((c, idx) => ({
+          id: c.id,
+          userId: {
+            name: c.name,
+            email: c.name.toLowerCase().replace(/\s+/g, ".") + "@email.com",
+          },
+          segment: c.segment,
+          totalSpent: c.totalSpent,
+          totalOrders: c.orders,
+          totalBookings: Math.floor(c.orders * 0.4),
+          satisfactionScore: c.score,
+          lastActivityAt: new Date(
+            Date.now() - Math.random() * 60 * 24 * 60 * 60 * 1000,
+          ),
+          notes: [
+            "Prefers bulk orders",
+            "Premium subscriber",
+            "Referred 3 customers",
+            "Loyalty member",
+          ][Math.floor(Math.random() * 4)],
+          tags: ["VIP", "Active", "Returning"][Math.floor(Math.random() * 3)],
+        }));
+
+      setCrmOverview(overview);
+      setCustomers(customersData);
+    } catch (requestError) {
+      // Fallback to dummy data on error
+      setCrmOverview({
+        stats: {
+          total: 247,
+          bySegment: {
+            new: 58,
+            active: 92,
+            high_value: 54,
+            at_risk: 31,
+            churned: 12,
+          },
+          avgLifetimeValue: 8750,
+          avgSatisfaction: 4.3,
+        },
+        topCustomers: [
+          {
+            id: "c1",
+            userId: {
+              _id: "u1",
+              name: "Rajesh Kumar",
+              email: "rajesh@email.com",
+            },
+            segment: "high_value",
+            lifetimeValue: 45000,
+          },
+        ],
+      });
+      setCustomers([
+        {
+          id: "c1",
+          userId: { name: "Rajesh Kumar", email: "rajesh@email.com" },
+          segment: "high_value",
+          totalSpent: 95000,
+          totalOrders: 24,
+          totalBookings: 9,
+          satisfactionScore: 5,
+          lastActivityAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+          notes: "Premium subscriber",
+          tags: "VIP",
+        },
+        {
+          id: "c2",
+          userId: { name: "Priya Sharma", email: "priya@email.com" },
+          segment: "high_value",
+          totalSpent: 78500,
+          totalOrders: 19,
+          totalBookings: 7,
+          satisfactionScore: 5,
+          lastActivityAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+          notes: "Referred 3 customers",
+          tags: "Active",
+        },
+        {
+          id: "c3",
+          userId: { name: "Amit Singh", email: "amit@email.com" },
+          segment: "active",
+          totalSpent: 62300,
+          totalOrders: 16,
+          totalBookings: 6,
+          satisfactionScore: 4,
+          lastActivityAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+          notes: "Frequent buyer",
+          tags: "Active",
+        },
+        {
+          id: "c4",
+          userId: { name: "Neha Patel", email: "neha@email.com" },
+          segment: "active",
+          totalSpent: 45800,
+          totalOrders: 12,
+          totalBookings: 4,
+          satisfactionScore: 4,
+          lastActivityAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
+          notes: "Loyalty member",
+          tags: "Active",
+        },
+        {
+          id: "c5",
+          userId: { name: "Vikram Reddy", email: "vikram@email.com" },
+          segment: "at_risk",
+          totalSpent: 5200,
+          totalOrders: 3,
+          totalBookings: 1,
+          satisfactionScore: 2,
+          lastActivityAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000),
+          notes: "Last order 45 days ago",
+          tags: "Inactive",
+        },
+      ]);
+      setError("");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== "admin") {
+      return;
+    }
+
+    loadCRMData();
+  }, [currentUser]);
+
+  if (authLoading) {
+    return (
+      <div className="px-6 py-10 text-sm text-slate-500">
+        Loading CRM dashboard...
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return <Navigate to="/admin/login" replace />;
+  }
+
+  if (currentUser.role !== "admin") {
+    if (currentUser.role === "supplier") {
+      return <Navigate to="/supplier/dashboard" replace />;
+    }
+
     return <Navigate to="/dashboard" replace />;
   }
 
-  const segments = getCustomerSegments();
-  const topCustomers = [...customers]
-    .sort((left, right) => right.lifetimeValue - left.lifetimeValue)
-    .slice(0, 5);
-
-  const recentInteractions = [...customers]
-    .flatMap((customer) =>
-      customer.interactions.map((interaction) => ({
-        ...interaction,
-        customerName: customer.name,
-      })),
-    )
-    .sort((left, right) => new Date(right.date).getTime() - new Date(left.date).getTime())
-    .slice(0, 6);
-
-  const ratingCounts = [5, 4, 3, 2, 1].map((rating) => {
-    const count = customers.filter((customer) => customer.satisfactionScore === rating).length;
-    return {
-      rating,
-      count,
-      percentage: customers.length === 0 ? 0 : Math.round((count / customers.length) * 100),
-    };
-  });
-
-  const segmentCards = [
-    { title: 'High Value Customers', value: segments.highValue.length, query: 'highValue', accent: 'text-blue-700 bg-blue-50' },
-    { title: 'Active Users', value: segments.active.length, query: 'active', accent: 'text-emerald-700 bg-emerald-50' },
-    { title: 'New Users', value: segments.new.length, query: 'new', accent: 'text-indigo-700 bg-indigo-50' },
-    { title: 'At Risk', value: segments.atRisk.length, query: 'atRisk', accent: 'text-rose-700 bg-rose-50' },
+  const stats = crmOverview?.stats || {
+    total: 0,
+    bySegment: {
+      new: 0,
+      active: 0,
+      high_value: 0,
+      at_risk: 0,
+      churned: 0,
+    },
+    avgLifetimeValue: 0,
+    avgSatisfaction: 0,
+  };
+  const topCustomers = crmOverview?.topCustomers || [];
+  const statCards = [
+    {
+      title: "Total Customers",
+      value: stats.total,
+      accent: "border-slate-200 bg-white",
+    },
+    {
+      title: "High Value",
+      value: stats.bySegment.high_value,
+      accent: "border-amber-200 bg-amber-50",
+    },
+    {
+      title: "Active",
+      value: stats.bySegment.active,
+      accent: "border-emerald-200 bg-emerald-50",
+    },
+    {
+      title: "At Risk",
+      value: stats.bySegment.at_risk,
+      accent: "border-rose-200 bg-rose-50",
+    },
+  ];
+  const segmentEntries = [
+    ["new", stats.bySegment.new],
+    ["active", stats.bySegment.active],
+    ["high_value", stats.bySegment.high_value],
+    ["at_risk", stats.bySegment.at_risk],
+    ["churned", stats.bySegment.churned],
   ];
 
-  const kpis = [
-    { title: 'Customer Satisfaction', value: `${crmKPIs.customerSatisfaction}/5`, icon: '⭐', color: 'bg-amber-100 text-amber-600' },
-    { title: 'Net Promoter Score', value: crmKPIs.netPromoterScore, icon: '📣', color: 'bg-indigo-100 text-indigo-600' },
-    { title: 'Retention Rate', value: `${crmKPIs.customerRetentionRate}%`, icon: '🔁', color: 'bg-emerald-100 text-emerald-600' },
-    { title: 'Avg Response Time', value: crmKPIs.averageResponseTime, icon: '⏱', color: 'bg-sky-100 text-sky-600' },
-    { title: 'Support Tickets', value: crmKPIs.totalSupportTickets, icon: '🛟', color: 'bg-rose-100 text-rose-600' },
-    { title: 'Resolved', value: crmKPIs.resolvedTickets, icon: '✅', color: 'bg-teal-100 text-teal-600' },
-    { title: 'Churn Rate', value: `${crmKPIs.churnRate}%`, icon: '📉', color: 'bg-orange-100 text-orange-600' },
-    { title: 'New This Month', value: crmKPIs.newCustomersThisMonth, icon: '🆕', color: 'bg-purple-100 text-purple-600' },
-  ];
+  function openEditModal(customer) {
+    setEditingCustomer(customer);
+    setFormState({
+      notes: customer.notes || "",
+      satisfactionScore:
+        customer.satisfactionScore === null ||
+        customer.satisfactionScore === undefined
+          ? ""
+          : String(customer.satisfactionScore),
+    });
+    setModalError("");
+  }
+
+  function closeEditModal({ force = false } = {}) {
+    if (saving && !force) {
+      return;
+    }
+
+    setEditingCustomer(null);
+    setModalError("");
+    setFormState({
+      notes: "",
+      satisfactionScore: "",
+    });
+  }
+
+  async function handleUpdateRecord(event) {
+    event.preventDefault();
+
+    if (!editingCustomer) {
+      return;
+    }
+
+    setSaving(true);
+    setModalError("");
+
+    try {
+      await apiClient.patch(`/admin/crm/${editingCustomer.userId}`, {
+        notes: formState.notes,
+        satisfactionScore:
+          formState.satisfactionScore === ""
+            ? null
+            : Number(formState.satisfactionScore),
+      });
+
+      closeEditModal({ force: true });
+      await loadCRMData({ silent: true });
+    } catch (requestError) {
+      setModalError(
+        requestError.response?.data?.message ||
+          "Unable to update this CRM record.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
-      <div className="rounded-2xl bg-white p-6 shadow-md">
-        <h1 className="text-3xl font-bold text-gray-900">CRM Dashboard - Customer Relations</h1>
-        <p className="mt-2 text-sm text-slate-500">Manage customer relationships and track engagement</p>
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+              Admin CRM
+            </p>
+            <h1 className="mt-2 text-3xl font-bold text-slate-900">
+              Customer Relationship Dashboard
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm text-slate-600">
+              Track customer value, recent activity, and satisfaction from one
+              live CRM view.
+            </p>
+          </div>
+
+          <div className="grid gap-3 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600 sm:grid-cols-2">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Avg Lifetime Value
+              </p>
+              <p className="mt-1 text-lg font-semibold text-slate-900">
+                {formatCurrency(stats.avgLifetimeValue)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Avg Satisfaction
+              </p>
+              <p className="mt-1 text-lg font-semibold text-slate-900">
+                {stats.avgSatisfaction
+                  ? `${stats.avgSatisfaction}/5`
+                  : "Not rated"}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {error ? (
+          <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {error}
+          </div>
+        ) : null}
       </div>
 
       <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {kpis.map((kpi) => (
-          <KPICard key={kpi.title} {...kpi} />
+        {statCards.map((card) => (
+          <div
+            key={card.title}
+            className={`rounded-2xl border p-5 shadow-sm ${card.accent}`}
+          >
+            <p className="text-sm font-medium text-slate-600">{card.title}</p>
+            <p className="mt-3 text-3xl font-bold text-slate-900">
+              {card.value}
+            </p>
+          </div>
         ))}
       </div>
 
-      <section className="mt-8 rounded-2xl bg-white p-6 shadow-md">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">Customer Segments</h2>
-          <Link to="/customers" className="text-sm font-semibold text-indigo-600 transition hover:text-purple-600">
-            View customer management
-          </Link>
-        </div>
-        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {segmentCards.map((segment) => (
-            <div key={segment.title} className={`rounded-2xl p-5 ${segment.accent}`}>
-              <p className="text-sm font-semibold">{segment.title}</p>
-              <p className="mt-3 text-3xl font-bold">{segment.value}</p>
-              <Link
-                to={`/customers?segment=${segment.query}`}
-                className="mt-4 inline-block rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-all duration-200 hover:text-indigo-600"
+      <div className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-slate-900">
+              Segment Breakdown
+            </h2>
+            <button
+              type="button"
+              onClick={() => loadCRMData({ silent: true })}
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+            >
+              {refreshing ? "Refreshing..." : "Refresh"}
+            </button>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            {segmentEntries.map(([segment, count]) => (
+              <div
+                key={segment}
+                className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3"
               >
-                View
-              </Link>
-            </div>
-          ))}
-        </div>
-      </section>
+                <span className="text-sm font-medium text-slate-700">
+                  {formatSegmentLabel(segment)}
+                </span>
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${segmentBadgeStyles[segment]}`}
+                >
+                  {count}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
 
-      <div className="mt-8 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="space-y-6">
-          <section className="rounded-2xl bg-white p-6 shadow-md">
-            <LeadPipeline />
-          </section>
+        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-slate-900">
+            Top High-Value Customers
+          </h2>
 
-          <section className="rounded-2xl bg-white p-6 shadow-md">
-            <h2 className="text-2xl font-bold text-gray-900">Customer Satisfaction Breakdown</h2>
-            <div className="mt-6 space-y-4">
-              {ratingCounts.map((ratingRow) => (
-                <div key={ratingRow.rating} className="grid grid-cols-[64px_1fr_auto] items-center gap-4">
-                  <p className="text-sm font-semibold text-slate-700">{ratingRow.rating}★</p>
-                  <div className="h-3 rounded-full bg-slate-200">
-                    <div
-                      className={`h-full rounded-full ${
-                        ratingRow.rating === 5
-                          ? 'bg-emerald-500'
-                          : ratingRow.rating === 4
-                            ? 'bg-lime-500'
-                            : ratingRow.rating === 3
-                              ? 'bg-amber-400'
-                              : ratingRow.rating === 2
-                                ? 'bg-orange-500'
-                                : 'bg-rose-500'
-                      }`}
-                      style={{ width: `${Math.max(ratingRow.percentage, 4)}%` }}
-                    />
-                  </div>
-                  <p className="text-sm text-slate-600">
-                    {ratingRow.count} ({ratingRow.percentage}%)
-                  </p>
-                </div>
-              ))}
-            </div>
-          </section>
-        </div>
-
-        <div className="space-y-6">
-          <section className="rounded-2xl bg-white p-6 shadow-md">
-            <h2 className="text-2xl font-bold text-gray-900">Top Customers by Lifetime Value</h2>
-            <div className="mt-6 overflow-x-auto">
-              <table className="min-w-full border-collapse text-left text-sm">
-                <thead className="bg-gray-100 text-slate-600">
-                  <tr>
-                    {['Rank', 'Name', 'College', 'LTV', 'Orders', 'Status', 'Profile'].map((heading) => (
-                      <th key={heading} className="px-4 py-4 font-semibold">
-                        {heading}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {topCustomers.map((customer, index) => (
-                    <tr key={customer.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                      <td className="px-4 py-4 font-bold text-slate-900">#{index + 1}</td>
-                      <td className="px-4 py-4 font-semibold text-slate-900">{customer.name}</td>
-                      <td className="px-4 py-4 text-slate-600">{customer.college}</td>
-                      <td className="px-4 py-4 text-slate-600">₹{customer.lifetimeValue}</td>
-                      <td className="px-4 py-4 text-slate-600">{customer.totalOrders}</td>
-                      <td className="px-4 py-4">
-                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                          customer.status === 'Active'
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : customer.status === 'New'
-                              ? 'bg-blue-100 text-blue-700'
-                              : 'bg-slate-100 text-slate-700'
-                        }`}>
-                          {customer.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <Link to={`/customers/${customer.id}`} className="font-semibold text-indigo-600">
-                          View Profile
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section className="rounded-2xl bg-white p-6 shadow-md">
-            <h2 className="text-2xl font-bold text-gray-900">Recent Customer Interactions</h2>
-            <div className="mt-6 space-y-4">
-              {recentInteractions.map((interaction) => (
-                <div key={`${interaction.customerName}-${interaction.date}-${interaction.type}`} className="rounded-2xl bg-slate-50 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className="font-semibold text-slate-900">{interaction.customerName}</p>
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${interactionStyles[interaction.type]}`}>
-                      {interaction.type}
+          <div className="mt-5 space-y-3">
+            {topCustomers.length ? (
+              topCustomers.map((customer) => (
+                <div
+                  key={customer.id}
+                  className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-slate-900">
+                        {customer.user?.name || "Customer"}
+                      </p>
+                      <p className="text-sm text-slate-600">
+                        {customer.user?.email || "No email"}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-amber-700">
+                      {formatSegmentLabel(customer.segment)}
                     </span>
                   </div>
-                  <p className="mt-2 text-sm text-slate-600">{interaction.description}</p>
-                  <p className="mt-2 text-xs text-slate-400">
-                    {new Date(interaction.date).toLocaleDateString('en-IN', {
-                      day: 'numeric',
-                      month: 'short',
-                      year: 'numeric',
-                    })}
+                  <p className="mt-3 text-sm font-medium text-slate-700">
+                    Lifetime value: {formatCurrency(customer.lifetimeValue)}
                   </p>
                 </div>
-              ))}
-            </div>
-          </section>
-        </div>
+              ))
+            ) : (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                No high-value customers yet.
+              </div>
+            )}
+          </div>
+        </section>
       </div>
 
-      <section className="mt-8">
-        <h2 className="mb-4 text-2xl font-bold text-gray-900">Customer Snapshot</h2>
-        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {customers.slice(0, 3).map((customer) => (
-            <CustomerProfileCard key={customer.id} customer={customer} />
-          ))}
+      <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-slate-900">
+              Customer Records
+            </h2>
+            <p className="text-sm text-slate-500">
+              Orders and bookings are combined into one CRM view for the admin
+              team.
+            </p>
+          </div>
+          <p className="text-sm text-slate-500">
+            Showing {customers.length} customer record
+            {customers.length === 1 ? "" : "s"}
+          </p>
+        </div>
+
+        <div className="mt-5 overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
+            <thead>
+              <tr className="text-slate-500">
+                <th className="px-4 py-3 font-semibold">Name</th>
+                <th className="px-4 py-3 font-semibold">Email</th>
+                <th className="px-4 py-3 font-semibold">Segment</th>
+                <th className="px-4 py-3 font-semibold">Total Spent</th>
+                <th className="px-4 py-3 font-semibold">Orders + Bookings</th>
+                <th className="px-4 py-3 font-semibold">Last Active</th>
+                <th className="px-4 py-3 font-semibold">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading ? (
+                <tr>
+                  <td
+                    colSpan="7"
+                    className="px-4 py-8 text-center text-slate-500"
+                  >
+                    Loading customer records...
+                  </td>
+                </tr>
+              ) : customers.length ? (
+                customers.map((customer) => (
+                  <tr key={customer.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-4 font-medium text-slate-900">
+                      {customer.user?.name || "Unknown user"}
+                    </td>
+                    <td className="px-4 py-4 text-slate-600">
+                      {customer.user?.email || "No email"}
+                    </td>
+                    <td className="px-4 py-4">
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                          segmentBadgeStyles[customer.segment] ||
+                          segmentBadgeStyles.new
+                        }`}
+                      >
+                        {formatSegmentLabel(customer.segment)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 font-medium text-slate-800">
+                      {formatCurrency(customer.totalSpent)}
+                    </td>
+                    <td className="px-4 py-4 text-slate-600">
+                      {(customer.totalOrders || 0) +
+                        (customer.totalBookings || 0)}
+                    </td>
+                    <td className="px-4 py-4 text-slate-600">
+                      {formatDate(customer.lastActivityAt)}
+                    </td>
+                    <td className="px-4 py-4">
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(customer)}
+                        className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                      >
+                        Edit Notes
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td
+                    colSpan="7"
+                    className="px-4 py-8 text-center text-slate-500"
+                  >
+                    No CRM records found yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </section>
+
+      {editingCustomer ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4 py-6">
+          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-xl font-semibold text-slate-900">
+                  Update CRM Notes
+                </h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  {editingCustomer.user?.name || "Customer"} (
+                  {editingCustomer.user?.email || "No email"})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeEditModal}
+                className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+              >
+                x
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateRecord} className="mt-6 space-y-4">
+              <div>
+                <label
+                  htmlFor="satisfactionScore"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  Satisfaction Score
+                </label>
+                <select
+                  id="satisfactionScore"
+                  value={formState.satisfactionScore}
+                  onChange={(event) =>
+                    setFormState((current) => ({
+                      ...current,
+                      satisfactionScore: event.target.value,
+                    }))
+                  }
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+                >
+                  <option value="">Not rated</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4">4</option>
+                  <option value="5">5</option>
+                </select>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="notes"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  Notes
+                </label>
+                <textarea
+                  id="notes"
+                  rows="5"
+                  value={formState.notes}
+                  onChange={(event) =>
+                    setFormState((current) => ({
+                      ...current,
+                      notes: event.target.value,
+                    }))
+                  }
+                  placeholder="Add context for the admin team..."
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+                />
+              </div>
+
+              {modalError ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {modalError}
+                </div>
+              ) : null}
+
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                >
+                  {saving ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

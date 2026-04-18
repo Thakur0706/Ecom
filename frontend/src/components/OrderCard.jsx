@@ -30,10 +30,10 @@ function OrderCard({ order, viewMode = 'purchases' }) {
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewText, setReviewText] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState(nextStatusMap[order.orderStatus][0] || '');
+  const [selectedStatus, setSelectedStatus] = useState(nextStatusMap[order.orderStatus]?.[0] || '');
 
   useEffect(() => {
-    setSelectedStatus(nextStatusMap[order.orderStatus][0] || '');
+    setSelectedStatus(nextStatusMap[order.orderStatus]?.[0] || '');
   }, [order.orderStatus]);
 
   const handleOpenOrder = (path) => {
@@ -69,8 +69,8 @@ function OrderCard({ order, viewMode = 'purchases' }) {
       });
   };
 
-  const counterpartLabel = viewMode === 'sales' ? 'Buyer' : 'Seller';
-  const counterpartName = viewMode === 'sales' ? order.buyerName : order.sellerName;
+  const counterpartLabel = viewMode === 'sales' ? 'Buyer' : 'Supplier';
+  const counterpartName = viewMode === 'sales' ? order.buyerName : order.supplierName;
 
   return (
     <>
@@ -96,7 +96,7 @@ function OrderCard({ order, viewMode = 'purchases' }) {
               <div className="flex flex-wrap items-center gap-3">
                 <p className="text-lg font-semibold text-slate-900">{order.product.title}</p>
                 <span
-                  className={`rounded-full px-3 py-1 text-xs font-semibold ${categoryStyles[order.product.category]}`}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${categoryStyles[order.product.category] || 'bg-slate-100 text-slate-600'}`}
                 >
                   {order.product.category}
                 </span>
@@ -111,12 +111,20 @@ function OrderCard({ order, viewMode = 'purchases' }) {
               <div className="flex flex-wrap items-center gap-3">
                 <span className="text-2xl font-bold text-slate-900">₹{order.totalAmount}</span>
                 <span
-                  className={`rounded-full px-3 py-1 text-xs font-semibold ${paymentStyles[order.paymentStatus]}`}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${paymentStyles[order.paymentStatus] || 'bg-slate-100 text-slate-600'}`}
                 >
                   {order.paymentStatus}
                 </span>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                  {order.paymentMethod}
+                </span>
                 <OrderStatusBadge status={order.orderStatus} />
               </div>
+              {order.transactionId && (
+                <p className="text-xs text-slate-400">
+                  Txn ID: <span className="font-mono">{order.transactionId}</span>
+                </p>
+              )}
             </div>
           </div>
 
@@ -153,7 +161,7 @@ function OrderCard({ order, viewMode = 'purchases' }) {
                 Leave Review
               </button>
             )}
-            {viewMode === 'sales' && nextStatusMap[order.orderStatus].length > 0 && (
+            {viewMode === 'sales' && (nextStatusMap[order.orderStatus] || []).length > 0 && (
               <div className="rounded-xl border border-slate-200 p-3">
                 <label htmlFor={`status-${order.id}`} className="mb-2 block text-xs font-semibold text-slate-500">
                   Update Status
@@ -165,7 +173,7 @@ function OrderCard({ order, viewMode = 'purchases' }) {
                     onChange={(event) => setSelectedStatus(event.target.value)}
                     className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
                   >
-                    {nextStatusMap[order.orderStatus].map((status) => (
+                    {(nextStatusMap[order.orderStatus] || []).map((status) => (
                       <option key={status} value={status}>
                         {status}
                       </option>
