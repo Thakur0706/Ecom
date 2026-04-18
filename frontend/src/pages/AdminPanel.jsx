@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
@@ -1384,6 +1384,7 @@ function AdminBookings() {
 function AdminChatModal({ booking, onClose }) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState("");
+  const scrollRef = useRef(null);
 
   const { data } = useQuery({
     queryKey: ["booking", booking.id, "messages"],
@@ -1402,6 +1403,12 @@ function AdminChatModal({ booking, onClose }) {
   });
 
   const messages = data?.data?.messages || [];
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
@@ -1423,7 +1430,7 @@ function AdminChatModal({ booking, onClose }) {
             Close
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-100/50 flex flex-col">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-100/50 flex flex-col">
           {messages.map((m) => {
             const isAdmin = m.senderId?.role === "admin";
             return (

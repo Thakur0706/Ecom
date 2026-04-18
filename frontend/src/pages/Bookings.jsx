@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate } from "react-router-dom";
 import { useOrderContext } from "../context/OrderContext";
@@ -36,6 +36,7 @@ function Bookings() {
   const [upiId, setUpiId] = useState("");
   const [upiPin, setUpiPin] = useState("");
   const [chatDraft, setChatDraft] = useState("");
+  const chatScrollRef = useRef(null);
 
   if (!currentUser) {
     return <Navigate to="/login" replace />;
@@ -226,6 +227,12 @@ function Bookings() {
   };
 
   const chatMessages = messagesQuery.data?.data?.messages || [];
+
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chatMessages]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
@@ -472,7 +479,7 @@ function Bookings() {
 
                 {chatEnabled ? (
                   <>
-                    <div className="mt-4 max-h-72 space-y-3 overflow-y-auto rounded-2xl bg-slate-50 p-4">
+                    <div ref={chatScrollRef} className="mt-4 max-h-72 space-y-3 overflow-y-auto rounded-2xl bg-slate-50 p-4">
                       {chatMessages.map((message) => {
                         const isMine =
                           message.senderId?._id === currentUser.id ||
